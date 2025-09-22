@@ -6,12 +6,17 @@ import { Link } from 'expo-router';
 
 export default function Profile() {
   return (
-    <View>
-      <Text>Profile</Text>
+    <View style={styles.container}>
+      <Text>PROFILE</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  
+  container : {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECF0F1'
+  },
 });
