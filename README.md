@@ -136,7 +136,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👥 Team
 
 Insightify is developed as part of a Mobile Programming course project by:
-- [Team Member 1](https://github.com/Edimar18)
+- [Edimar](https://github.com/Edimar18)
 - [Team Member 2](https://github.com/member2)
 - [Team Member 3](https://github.com/member3)
 - [Team Member 4](https://github.com/member4)
