@@ -1,5 +1,9 @@
-import React from 'react';
+import { Asset } from 'expo-asset';
+import { readAsStringAsync } from 'expo-file-system/legacy';
+import Papa, { ParseResult } from 'papaparse';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
 
@@ -36,19 +40,92 @@ const MetricCard = ({ title, value }: MetricCardProps) => {
   return (
     <View style={styles.metricCard}>
       <Text style={styles.metricTitle}>{title}</Text>
-      <Text style={styles.metricValue}>${value}</Text>
+      <Text style={styles.metricValue}>₱{value}</Text>
     </View>
   );
 };
 
+// --- Type Definition for our Data ---
+interface Transaction {
+  Date: string;
+  Type: 'Revenue' | 'Expense';
+  Description: string;
+  Category: string;
+  Amount: number;
+}
 // --- Component 3: The Dashboard Screen ---
 const DashboardScreen = () => {
-  const metrics = [
-    { title: 'Total Revenue', value: '15,000' },
-    { title: 'Net Profit', value: '10,000' },
-    { title: 'Expenses', value: '5,000' },
-    { title: 'Avg. Order Value', value: '1,000' },
-  ];
+  // State to hold transaction data loaded from CSV
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  // --- DATA LOADING LOGIC ---
+  useEffect(() => {
+    const loadTransactions = async () => {
+      // 1. Get the asset module for our CSV file
+      const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
+      await asset.downloadAsync(); // Ensure it's downloaded
+
+      if (!asset.localUri) {
+        console.error("Could not find local URI for asset");
+        return;
+      }
+
+      // 2. Read the file content from the local URI
+      const csvString = await readAsStringAsync(asset.localUri);
+
+      // 3. Parse the CSV string into JSON
+      Papa.parse(csvString, {
+        header: true, // Treat the first row as headers
+        dynamicTyping: true, // Automatically convert numbers and booleans
+        complete: (results: ParseResult<Transaction>) => {
+          // 4. Set the parsed data into our component's state
+          setTransactions(results.data);
+        },
+        error: (error: any) => {
+          console.error("Error parsing CSV:", error);
+        },
+      });
+    };
+
+    loadTransactions();
+  }, []); // The empty dependency array ensures this runs only once on mount
+
+
+  // --- DATA PROCESSING LOGIC ---
+  // useMemo prevents recalculating on every render unless transactions change
+  const { metrics, chartData } = useMemo(() => {
+    const totalRevenue = transactions.filter(t => t.Type === 'Revenue').reduce((sum, t) => sum + t.Amount, 0);
+    const totalExpenses = transactions.filter(t => t.Type === 'Expense').reduce((sum, t) => sum + t.Amount, 0);
+    const netProfit = totalRevenue - totalExpenses;
+    const revenueTransactions = transactions.filter(t => t.Type === 'Revenue');
+    const avgOrderValue = revenueTransactions.length > 0 ? totalRevenue / revenueTransactions.length : 0;
+
+    // For the chart, we'll show weekly totals for October
+    const weeklyData = { 'W1': { revenue: 0, expenses: 0 }, 'W2': { revenue: 0, expenses: 0 }, 'W3': { revenue: 0, expenses: 0 } };
+    transactions.forEach(t => {
+      const day = new Date(t.Date).getDate();
+      const week = day <= 7 ? 'W1' : day <= 14 ? 'W2' : 'W3';
+      if (t.Type === 'Revenue') weeklyData[week].revenue += t.Amount;
+      if (t.Type === 'Expense') weeklyData[week].expenses += t.Amount;
+    });
+
+    return {
+      metrics: [
+        { title: 'Total Revenue', value: totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 }) },
+        { title: 'Net Profit', value: netProfit.toLocaleString('en-US', { minimumFractionDigits: 2 }) },
+        { title: 'Expenses', value: totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 }) },
+        { title: 'Avg. Order Value', value: avgOrderValue.toLocaleString('en-US', { minimumFractionDigits: 2 }) },
+      ],
+      chartData: {
+        labels: Object.keys(weeklyData), // ["W1", "W2", "W3"]
+        datasets: [
+          { data: Object.values(weeklyData).map(d => d.revenue), color: (opacity = 1) => `#4F46E5` }, // Revenue
+          { data: Object.values(weeklyData).map(d => d.expenses), color: (opacity = 1) => `#22C55E` }, // Expenses
+        ],
+        legend: ["Revenue", "Expenses"]
+      }
+    };
+  }, [transactions]);
 
   return (
     // SafeAreaView is essential for iOS and Android to handle notches and system bars
@@ -74,21 +151,31 @@ const DashboardScreen = () => {
           <Text style={styles.chartTitle}>Revenue vs Expenses</Text>
           
           {/* Chart Placeholder Area */}
-          <View style={styles.chartPlaceholder}>
-            <Text style={styles.placeholderText}>CHART PLACEHOLDER</Text>
-          </View>
+          <LineChart
+            data={chartData}
+            width={width - 72} // Screen width - container padding (16*2) - chart section padding (20*2)
+            height={220}
+            yAxisLabel="₱"
+            yAxisSuffix="k"
+            yAxisInterval={1}
+            withShadow={false}
+            withInnerLines={false}
+            chartConfig={{
+              backgroundColor: '#FFFFFF',
+              backgroundGradientFrom: '#FFFFFF',
+              backgroundGradientTo: '#FFFFFF',
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(31, 41, 55, ${opacity})`, // Text color
+              labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`, // Axis label color
+              style: { borderRadius: 16 },
+              propsForDots: { r: '4', strokeWidth: '2' }
+            }}
+            bezier
+            style={styles.chartStyle}
+          />
           
           {/* Legend */}
-          <View style={styles.legendContainer}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#4F46E5' }]} />
-              <Text style={styles.legendText}>Revenue</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
-              <Text style={styles.legendText}>Expenses</Text>
-            </View>
-          </View>
+          {/* The legend is now part of the chart data, but you can keep a custom one if you prefer */}
         </View>
 
       </ScrollView>
@@ -194,30 +281,9 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 15,
   },
-  chartPlaceholder: {
-    height: 200,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+  chartStyle: {
     marginBottom: 15,
-  },
-  placeholderText: {
-    color: '#9CA3AF',
-    fontSize: 16,
-  },
-  
-  // Legend Styles
-  legendContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
+    borderRadius: 16,
   },
   legendDot: {
     width: 10,

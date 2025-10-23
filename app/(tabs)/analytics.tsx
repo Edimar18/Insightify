@@ -1,9 +1,14 @@
-import React from 'react';
-import { StyleSheet, View, Text, Image, ScrollView, Dimensions, SafeAreaView, TouchableOpacity } from 'react-native';
+import { Asset } from 'expo-asset';
+import { readAsStringAsync } from 'expo-file-system/legacy';
+import Papa, { ParseResult } from 'papaparse';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LineChart, PieChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
 // Calculate card width for two items per row with padding
 const CARD_WIDTH = (width / 2) - 24; 
+const CHART_COLORS = ['#3B82F6', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6'];
 
 // --- Component 1: Custom Header (Reused from Dashboard) ---
 const AppHeader = () => {
@@ -24,16 +29,16 @@ const AppHeader = () => {
 
 // --- Component Time Filter Card ---
 type TimeFilterProps = {
-  selected: string;
+  selected: FilterType;
+  onSelect: (filter: FilterType) => void;
 };
 
 // --- Component 2: Time Filter (Day/Week/Month) ---
-const TimeFilter = ({ selected }: TimeFilterProps) => {
-    // This is purely for UI display, no functionality added yet
-    const filters = ['Day', 'Week', 'Month'];
+const TimeFilter = ({ selected, onSelect }: TimeFilterProps) => {
+    const filters: FilterType[] = ['Day', 'Week', 'Month'];
     return (
         <View style={filterStyles.container}>
-            <Text style={filterStyles.dateText}>JAN 1, 2025 - Dec 31 2025</Text>
+            <Text style={filterStyles.dateText}>Filter by:</Text>
             <View style={filterStyles.buttonGroup}>
                 {filters.map((filter) => (
                     <TouchableOpacity 
@@ -41,7 +46,8 @@ const TimeFilter = ({ selected }: TimeFilterProps) => {
                         style={[
                             filterStyles.button, 
                             selected === filter && filterStyles.buttonSelected
-                        ]}
+                        ]} 
+                        onPress={() => onSelect(filter)}
                     >
                         <Text style={[
                             filterStyles.buttonText,
@@ -56,99 +62,222 @@ const TimeFilter = ({ selected }: TimeFilterProps) => {
     );
 };
 
-// --- Component 3: Donut Chart Placeholder ---
-const DonutChartCard = () => {
-    // Placeholders for chart and legends
+type PieChartData = {
+  name: string;
+  amount: number;
+  color: string;
+  legendFontColor: string;
+  legendFontSize: number;
+};
+
+// --- Component 3: Expense Category Donut Chart ---
+const ExpenseDonutChart = ({ data }: { data: PieChartData[] }) => {
     return (
         <View style={styles.card}>
-            <Text style={styles.cardTitle}>Category</Text>
-            <View style={chartStyles.donutPlaceholder}>
-                <Text style={chartStyles.percentageText}>68%</Text>
-                <Text style={chartStyles.percentageTextRight}>10%</Text>
-                <Text style={chartStyles.percentageTextBottom}>22%</Text>
-            </View>
+            <Text style={styles.cardTitle}>Expenses by Category</Text>
+            {data.length > 0 ? (
+                <PieChart
+                    data={data}
+                    width={CARD_WIDTH - 30} // card width - padding
+                    height={120}
+                    chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
+                    accessor={"amount"}
+                    backgroundColor={"transparent"}
+                    paddingLeft={"15"}
+                    center={[10, 0]}
+                    hasLegend={false} // We'll render a custom legend
+                    absolute
+                />
+            ) : (
+                <View style={chartStyles.placeholder}><Text style={chartStyles.placeholderText}>No expense data</Text></View>
+            )}
             <View style={chartStyles.legendContainer}>
-                <View style={chartStyles.legendItem}>
-                    <View style={[chartStyles.dot, { backgroundColor: '#3B82F6' }]} />
-                    <Text style={chartStyles.legendText}>Sales</Text>
-                </View>
-                <View style={chartStyles.legendItem}>
-                    <View style={[chartStyles.dot, { backgroundColor: '#F59E0B' }]} />
-                    <Text style={chartStyles.legendText}>Marketing</Text>
-                </View>
-                <View style={chartStyles.legendItem}>
-                    <View style={[chartStyles.dot, { backgroundColor: '#EF4444' }]} />
-                    <Text style={chartStyles.legendText}>Expenses</Text>
-                </View>
+                {data.map(item => (
+                    <View key={item.name} style={chartStyles.legendItem}>
+                        <View style={[chartStyles.dot, { backgroundColor: item.color }]} />
+                        <Text style={chartStyles.legendText}>{item.name}</Text>
+                    </View>
+                ))}
             </View>
         </View>
     );
 };
 
-// --- Component 4: Line Chart Placeholder ---
-const LineChartCard = () => {
+type LineChartCardProps = {
+    data: {
+        labels: string[];
+        datasets: { data: number[] }[];
+    };
+    totalRevenue: number;
+    totalExpenses: number;
+};
+
+// --- Component 4: Profit / Loss Line Chart ---
+const ProfitLossLineChart = ({ data, totalRevenue, totalExpenses }: LineChartCardProps) => {
     return (
         <View style={styles.card}>
             <Text style={styles.cardTitle}>Profit / Loss</Text>
-            <View style={chartStyles.linePlaceholder} />
+            {data.labels.length > 0 ? (
+                <LineChart
+                    data={data}
+                    width={CARD_WIDTH - 10} // Adjust for padding
+                    height={120}
+                    withHorizontalLabels={false}
+                    withInnerLines={false}
+                    withOuterLines={false}
+                    withShadow={false}
+                    chartConfig={{
+                        backgroundColor: '#FFFFFF',
+                        backgroundGradientFrom: '#FFFFFF',
+                        backgroundGradientTo: '#FFFFFF',
+                        decimalPlaces: 0,
+                        color: (opacity = 1) => `rgba(67, 56, 202, ${opacity})`,
+                        propsForDots: { r: '3', strokeWidth: '1', stroke: '#4338CA' },
+                    }}
+                    bezier
+                    style={{ marginLeft: -15, marginBottom: -10 }}
+                />
+            ) : (
+                <View style={chartStyles.placeholder}><Text style={chartStyles.placeholderText}>No profit data</Text></View>
+            )}
             <View style={chartStyles.summary}>
-                <Text style={chartStyles.summaryText}>Total Revenue: <Text style={chartStyles.revenueText}>+$15,000.00</Text></Text>
-                <Text style={chartStyles.summaryText}>Total Expenses: <Text style={chartStyles.expensesText}>+$7,000.00</Text></Text>
+                <Text style={chartStyles.summaryText}>Revenue: <Text style={chartStyles.revenueText}>+${totalRevenue.toFixed(2)}</Text></Text>
+                <Text style={chartStyles.summaryText}>Expenses: <Text style={chartStyles.expensesText}>-${totalExpenses.toFixed(2)}</Text></Text>
             </View>
         </View>
     );
 };
 
 // --- Component Card PROPS---
-type ComponentCardProps = {
-  index: number;
-  id: string;
-  date: string;
-  status: string;
-  color: string;
+type TransactionRowProps = {
+  transaction: Transaction;
 };
 
-// --- Component 5: Stock Log Table Row ---
-const LogRow = ({ index, id, date, status, color }: ComponentCardProps) => {
+// --- Component 5: Recent Transactions Table Row ---
+const TransactionRow = ({ transaction }: TransactionRowProps) => {
+    const isRevenue = transaction.Type === 'Revenue';
     return (
         <View style={logStyles.row}>
-            <Text style={[logStyles.cell, logStyles.cellNo]}>{index}</Text>
-            <Text style={[logStyles.cell, logStyles.cellID]}>{id}</Text>
-            <Text style={[logStyles.cell, logStyles.cellDate]}>{date}</Text>
-            <View style={[logStyles.cell, logStyles.cellStatus]}>
-                <Text style={logStyles.statusText}>{status}</Text>
-                <View style={[logStyles.statusDot, { backgroundColor: color }]} />
-            </View>
+            <Text style={[logStyles.cell, logStyles.cellDate]}>{transaction.Date}</Text>
+            <Text style={[logStyles.cell, logStyles.cellDesc]} numberOfLines={1}>{transaction.Description}</Text>
+            <Text style={[logStyles.cell, logStyles.cellAmount, isRevenue ? logStyles.amountRevenue : logStyles.amountExpense]}>
+                {isRevenue ? '+' : '-'}${transaction.Amount.toFixed(2)}
+            </Text>
         </View>
     );
 };
 
-// --- Component 6: Stock Log Details ---
-const StockLogDetails = () => {
-    const data = [
-        { index: 1, id: '#12594', date: 'Sept 30, 2025', status: 'Delivered', color: '#10B981' }, // Green
-        { index: 2, id: '#12490', date: 'Oct 01, 2025', status: 'Pending', color: '#3B82F6' }, // Blue
-        { index: 3, id: '#12306', date: 'Oct 10, 2025', status: 'Pending', color: '#F59E0B' }, // Orange
-    ];
+// --- Component 6: Recent Transactions List ---
+const RecentTransactions = ({ transactions }: { transactions: Transaction[] }) => {
     return (
         <View style={logStyles.container}>
-            <Text style={logStyles.title}>Stocks Log Details</Text>
+            <Text style={logStyles.title}>Recent Transactions</Text>
             <View style={logStyles.headerRow}>
-                <Text style={[logStyles.headerCell, logStyles.cellNo]}>No</Text>
-                <Text style={[logStyles.headerCell, logStyles.cellID]}>ID</Text>
                 <Text style={[logStyles.headerCell, logStyles.cellDate]}>Date</Text>
-                <Text style={[logStyles.headerCell, logStyles.cellStatus]}>Status</Text>
+                <Text style={[logStyles.headerCell, logStyles.cellDesc]}>Description</Text>
+                <Text style={[logStyles.headerCell, logStyles.cellAmount]}>Amount</Text>
             </View>
-            {data.map((item) => (
-                <LogRow key={item.index} {...item} />
+            {transactions.slice(0, 5).map((item, index) => (
+                <TransactionRow key={index} transaction={item} />
             ))}
         </View>
     );
 };
 
+// --- Type Definitions ---
+type FilterType = 'Day' | 'Week' | 'Month';
+interface Transaction {
+  Date: string;
+  Type: 'Revenue' | 'Expense';
+  Description: string;
+  Category: string;
+  Amount: number;
+}
 
 // --- Main Screen Component ---
 const AnalyticsScreen = () => {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('Month');
+
+  // --- Data Loading ---
+  useEffect(() => {
+    const loadTransactions = async () => {
+      try {
+        const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
+        await asset.downloadAsync();
+        if (!asset.localUri) return;
+        const csvString = await readAsStringAsync(asset.localUri);
+        Papa.parse(csvString, {
+          header: true,
+          dynamicTyping: true,
+          complete: (results: ParseResult<Transaction>) => {
+            // Filter out any empty rows from CSV parsing
+            const validData = results.data.filter(row => row.Date && row.Amount);
+            setTransactions(validData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime())); // Sort newest first
+          },
+        });
+      } catch (error) {
+        console.error("Failed to load or parse transactions:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTransactions();
+  }, []);
+
+  // --- Data Processing ---
+  const { pieChartData, lineChartData, lineChartTotals, filteredTransactions } = useMemo(() => {
+    const now = new Date('2025-10-17T12:00:00Z'); // Use a fixed date for consistent filtering with dummy data
+    const filtered = transactions.filter(t => {
+        const tDate = new Date(t.Date);
+        if (activeFilter === 'Day') return tDate.toDateString() === now.toDateString();
+        if (activeFilter === 'Week') return (now.getTime() - tDate.getTime()) / (1000 * 3600 * 24) <= 7;
+        return true; // 'Month' shows all data for this example
+    });
+
+    // Pie Chart (Expenses by Category)
+    const expenseGroups = filtered.filter(t => t.Type === 'Expense').reduce((acc, t) => {
+        acc[t.Category] = (acc[t.Category] || 0) + t.Amount;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const pieData: PieChartData[] = Object.entries(expenseGroups).map(([name, amount], index) => ({
+        name,
+        amount,
+        color: CHART_COLORS[index % CHART_COLORS.length],
+        legendFontColor: '#4B5563',
+        legendFontSize: 12,
+    }));
+
+    // Line Chart (Profit over time)
+    const profitByDay = filtered.reduce((acc, t) => {
+        const day = t.Date;
+        if (!acc[day]) acc[day] = { revenue: 0, expense: 0 };
+        if (t.Type === 'Revenue') acc[day].revenue += t.Amount;
+        else acc[day].expense += t.Amount;
+        return acc;
+    }, {} as Record<string, { revenue: number; expense: number }>);
+
+    const sortedDays = Object.keys(profitByDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const lineData = {
+        labels: sortedDays.map(day => new Date(day).toLocaleDateString('en-US', { day: 'numeric' })),
+        datasets: [{ data: sortedDays.map(day => profitByDay[day].revenue - profitByDay[day].expense) }]
+    };
+
+    const totals = filtered.reduce((acc, t) => {
+        if (t.Type === 'Revenue') acc.revenue += t.Amount;
+        else acc.expense += t.Amount;
+        return acc;
+    }, { revenue: 0, expense: 0 });
+
+    return { pieChartData: pieData, lineChartData: lineData, lineChartTotals: totals, filteredTransactions: filtered };
+  }, [transactions, activeFilter]);
+
+  if (loading) {
+    return <SafeAreaView style={styles.safeArea}><ActivityIndicator size="large" style={{ flex: 1 }} /></SafeAreaView>;
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView 
@@ -157,16 +286,16 @@ const AnalyticsScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <AppHeader />
-        <TimeFilter selected="Day" />
+        <TimeFilter selected={activeFilter} onSelect={setActiveFilter} />
 
         {/* Top Analytics Cards */}
         <View style={styles.topCardsContainer}>
-            <DonutChartCard />
-            <LineChartCard />
+            <ExpenseDonutChart data={pieChartData} />
+            <ProfitLossLineChart data={lineChartData} totalRevenue={lineChartTotals.revenue} totalExpenses={lineChartTotals.expense} />
         </View>
 
-        {/* Stock Log Details Table */}
-        <StockLogDetails />
+        {/* Recent Transactions Table */}
+        <RecentTransactions transactions={filteredTransactions} />
 
       </ScrollView>
     </SafeAreaView>
@@ -258,7 +387,7 @@ const filterStyles = StyleSheet.create({
     dateText: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#4B5563',
+        color: '#1F2937',
     },
     buttonGroup: {
         flexDirection: 'row',
@@ -294,44 +423,16 @@ const filterStyles = StyleSheet.create({
 });
 
 const chartStyles = StyleSheet.create({
-    // Donut Chart Placeholder
-    donutPlaceholder: {
-        // Removed the conflicting 'width: 100%' here
-        aspectRatio: 1, // Keep it square
-        backgroundColor: '#E5E7EB', // Placeholder color
-        borderRadius: CARD_WIDTH / 2, // Circular shape
-        marginVertical: 10,
+    placeholder: {
+        height: 120,
         justifyContent: 'center',
         alignItems: 'center',
-        position: 'relative',
-        height: 120, // fixed height for visual size
-        width: 120, // Kept the specific pixel width
-        alignSelf: 'center',
-        
+        backgroundColor: '#F9FAFB',
+        borderRadius: 8,
     },
-    percentageText: {
-        position: 'absolute',
-        top: 20,
-        left: 0,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#1F2937',
-    },
-    percentageTextRight: {
-        position: 'absolute',
-        top: 20,
-        right: 0,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#1F2937',
-    },
-    percentageTextBottom: {
-        position: 'absolute',
-        bottom: 0,
-        right: 25,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#1F2937',
+    placeholderText: {
+        color: '#9CA3AF',
+        fontSize: 14,
     },
     legendContainer: {
         marginTop: 15,
@@ -355,20 +456,8 @@ const chartStyles = StyleSheet.create({
         color: '#4B5563',
     },
 
-    // Line Chart Placeholder
-    linePlaceholder: {
-        width: '100%',
-        height: 120,
-        backgroundColor: '#E5E7EB',
-        borderRadius: 8,
-        marginBottom: 10,
-        // Adding a simple visual line approximation (purely visual)
-        borderBottomWidth: 2,
-        borderLeftWidth: 2,
-        borderColor: '#9CA3AF',
-    },
     summary: {
-        marginTop: 10,
+        marginTop: 15,
     },
     summaryText: {
         fontSize: 12,
@@ -380,7 +469,7 @@ const chartStyles = StyleSheet.create({
         fontWeight: '700',
     },
     expensesText: {
-        color: '#EF4444', // Red for expenses (or maybe a positive green if treated as a metric goal)
+        color: '#EF4444', // Red for expenses
         fontWeight: '700',
     },
 });
@@ -406,7 +495,7 @@ const logStyles = StyleSheet.create({
     },
     headerRow: {
         flexDirection: 'row',
-        paddingVertical: 10,
+        paddingBottom: 10,
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
     },
@@ -420,6 +509,7 @@ const logStyles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#6B7280',
+        textAlign: 'left',
     },
     cell: {
         fontSize: 14,
@@ -427,33 +517,25 @@ const logStyles = StyleSheet.create({
         alignSelf: 'center',
     },
     // Column Width Distribution (approximate)
-    cellNo: {
-        width: '10%', 
-    },
-    cellID: {
-        width: '25%',
-        fontWeight: '500',
-    },
     cellDate: {
         width: '35%',
         color: '#6B7280',
     },
-    cellStatus: {
-        width: '30%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
+    cellDesc: {
+        width: '40%',
+        fontWeight: '500',
     },
-    statusText: {
-        fontSize: 14,
-        color: '#1F2937',
-        marginRight: 8,
+    cellAmount: {
+        width: '25%',
+        fontWeight: '600',
+        textAlign: 'right',
     },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    }
+    amountRevenue: {
+        color: '#10B981',
+    },
+    amountExpense: {
+        color: '#EF4444',
+    },
 });
 
 export default AnalyticsScreen;
