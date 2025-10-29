@@ -80,7 +80,7 @@ const ExpenseDonutChart = ({ data }: { data: PieChartData[] }) => {
                     data={data}
                     width={CARD_WIDTH - 30} // card width - padding
                     height={120}
-                    chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ₱{opacity})` }}
+                    chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
                     accessor={"amount"}
                     backgroundColor={"transparent"}
                     paddingLeft={"15"}
@@ -131,7 +131,7 @@ const ProfitLossLineChart = ({ data, totalRevenue, totalExpenses }: LineChartCar
                         backgroundGradientFrom: '#FFFFFF',
                         backgroundGradientTo: '#FFFFFF',
                         decimalPlaces: 0,
-                        color: (opacity = 1) => `rgba(67, 56, 202, ₱{opacity})`,
+                        color: (opacity = 1) => `rgba(67, 56, 202, ${opacity})`,
                         propsForDots: { r: '3', strokeWidth: '1', stroke: '#4338CA' },
                     }}
                     bezier
