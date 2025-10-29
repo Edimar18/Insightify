@@ -80,7 +80,7 @@ const ExpenseDonutChart = ({ data }: { data: PieChartData[] }) => {
                     data={data}
                     width={CARD_WIDTH - 30} // card width - padding
                     height={120}
-                    chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
+                    chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ₱{opacity})` }}
                     accessor={"amount"}
                     backgroundColor={"transparent"}
                     paddingLeft={"15"}
@@ -131,7 +131,7 @@ const ProfitLossLineChart = ({ data, totalRevenue, totalExpenses }: LineChartCar
                         backgroundGradientFrom: '#FFFFFF',
                         backgroundGradientTo: '#FFFFFF',
                         decimalPlaces: 0,
-                        color: (opacity = 1) => `rgba(67, 56, 202, ${opacity})`,
+                        color: (opacity = 1) => `rgba(67, 56, 202, ₱{opacity})`,
                         propsForDots: { r: '3', strokeWidth: '1', stroke: '#4338CA' },
                     }}
                     bezier
@@ -141,8 +141,8 @@ const ProfitLossLineChart = ({ data, totalRevenue, totalExpenses }: LineChartCar
                 <View style={chartStyles.placeholder}><Text style={chartStyles.placeholderText}>No profit data</Text></View>
             )}
             <View style={chartStyles.summary}>
-                <Text style={chartStyles.summaryText}>Revenue: <Text style={chartStyles.revenueText}>+${totalRevenue.toFixed(2)}</Text></Text>
-                <Text style={chartStyles.summaryText}>Expenses: <Text style={chartStyles.expensesText}>-${totalExpenses.toFixed(2)}</Text></Text>
+                <Text style={chartStyles.summaryText}>Revenue: <Text style={chartStyles.revenueText}>+₱{totalRevenue.toFixed(2)}</Text></Text>
+                <Text style={chartStyles.summaryText}>Expenses: <Text style={chartStyles.expensesText}>-₱{totalExpenses.toFixed(2)}</Text></Text>
             </View>
         </View>
     );
@@ -161,7 +161,7 @@ const TransactionRow = ({ transaction }: TransactionRowProps) => {
             <Text style={[logStyles.cell, logStyles.cellDate]}>{transaction.Date}</Text>
             <Text style={[logStyles.cell, logStyles.cellDesc]} numberOfLines={1}>{transaction.Description}</Text>
             <Text style={[logStyles.cell, logStyles.cellAmount, isRevenue ? logStyles.amountRevenue : logStyles.amountExpense]}>
-                {isRevenue ? '+' : '-'}${transaction.Amount.toFixed(2)}
+                {isRevenue ? '+' : '-'}₱{transaction.Amount.toFixed(2)}
             </Text>
         </View>
     );
