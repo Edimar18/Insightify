@@ -1,9 +1,9 @@
 Date,Type,Description,Category,Amount
 10/1/2025,Revenue,Product A Sale,Sales,1200.5
-10/1/2025,Expense,Office Supplies,Overhead,75.2
+10/1/2025,Expense,Office Supplies,Overhead,90
 10/2/2025,Revenue,Service B Subscription,Services,260
 10/3/2025,Expense,Facebook Ads,Marketing,250
-10/4/2025,Revenue,Product C Sale,Sales,850
+10/4/2025,Revenue,Product C Sale,Sales,890
 10/5/2025,Revenue,Consulting Fee,Services,1500
 10/5/2025,Expense,Cloud Server Hosting,Utilities,159
 10/6/2025,Expense,Delivery Fee,Logistics,45.5
@@ -12,7 +12,7 @@ Date,Type,Description,Category,Amount
 10/9/2025,Revenue,Service D Project,Services,3200
 10/10/2025,Expense,Software Subscription,Software,80
 10/11/2025,Revenue,Product B Sale,Sales,450.75
-10/12/2025,Expense,Office Rent,Overhead,1200
+10/12/2025,Expense,Office Rent,Overhead,1800
 10/13/2025,Revenue,Product A Sale,Sales,1200.5
 10/14/2025,Expense,Shipping Costs,Logistics,88.25
 10/15/2025,Revenue,Service B Subscription,Services,250
