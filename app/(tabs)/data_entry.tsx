@@ -1,7 +1,23 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, Image, ScrollView, SafeAreaView, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
+import { Asset } from 'expo-asset';
+import { readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import Papa from 'papaparse';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-// --- Component 1: Custom Header (Reused for uniformity) ---
+// Type Definitions
+interface Transaction {
+  Date: string;
+  Type: 'Revenue' | 'Expense' | 'Product';
+  Description: string;
+  Category: string;
+  Amount: number;
+  Quantity?: number; // For products
+  UnitPrice?: number; // For products
+}
+
+type TabType = 'Product' | 'Revenue' | 'Expense' | 'Import';
+
+//  Component 1: Custom Header 
 const AppHeader = () => {
   return (
     <View style={styles.headerContainer}>
@@ -18,32 +34,23 @@ const AppHeader = () => {
   );
 };
 
-type EntryTabsProps = {
-    activeTab: string;
-    setActiveTab: (tab: string) => void;
-};
-// --- Component 2: Sub-Tab Navigation ---
-const EntryTabs = ({ activeTab, setActiveTab }: EntryTabsProps) => {
-    const tabs = [
-        { key: 'Product', label: 'Product' },
-        { key: 'Revenue', label: 'Revenue' },
-        { key: 'Expense', label: 'Expense' },
-        { key: 'Import', label: 'Import' }, // Added based on context
-    ];
+//  Component 2: Tab Navigation 
+const EntryTabs = ({ activeTab, setActiveTab }: { activeTab: TabType; setActiveTab: (tab: TabType) => void }) => {
+    const tabs: TabType[] = ['Product', 'Revenue', 'Expense', 'Import'];
 
     return (
         <View style={tabStyles.container}>
             {tabs.map((tab) => (
                 <TouchableOpacity
-                    key={tab.key}
-                    style={[tabStyles.tab, activeTab === tab.key && tabStyles.activeTab]}
-                    onPress={() => setActiveTab(tab.key)}
+                    key={tab}
+                    style={[tabStyles.tab, activeTab === tab && tabStyles.activeTab]}
+                    onPress={() => setActiveTab(tab)}
                 >
                     <Text style={[
                         tabStyles.tabText,
-                        activeTab === tab.key && tabStyles.activeTabText
+                        activeTab === tab && tabStyles.activeTabText
                     ]}>
-                        {tab.label}
+                        {tab}
                     </Text>
                 </TouchableOpacity>
             ))}
@@ -51,74 +58,315 @@ const EntryTabs = ({ activeTab, setActiveTab }: EntryTabsProps) => {
     );
 };
 
+//  Component 3: Table View 
+const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
+    if (type === 'Import') return null;
 
-type CustomInputProps = {
-    label: string;
-    placeholder: string;
-    isDropdown?: boolean;
-    multiline?: boolean;
+    const renderHeader = () => {
+        if (type === 'Product') {
+            return (
+                <View style={tableStyles.headerRow}>
+                    <Text style={[tableStyles.headerCell, { width: '25%' }]}>Date</Text>
+                    <Text style={[tableStyles.headerCell, { width: '30%' }]}>Name</Text>
+                    <Text style={[tableStyles.headerCell, { width: '20%' }]}>Category</Text>
+                    <Text style={[tableStyles.headerCell, { width: '25%' }]}>Price</Text>
+                </View>
+            );
+        } else {
+            return (
+                <View style={tableStyles.headerRow}>
+                    <Text style={[tableStyles.headerCell, { width: '25%' }]}>Date</Text>
+                    <Text style={[tableStyles.headerCell, { width: '35%' }]}>Description</Text>
+                    <Text style={[tableStyles.headerCell, { width: '20%' }]}>Category</Text>
+                    <Text style={[tableStyles.headerCell, { width: '20%' }]}>Amount</Text>
+                </View>
+            );
+        }
+    };
+
+    const renderRow = (item: Transaction, index: number) => {
+        if (type === 'Product') {
+            return (
+                <View key={index} style={tableStyles.row}>
+                    <Text style={[tableStyles.cell, { width: '25%' }]}>{item.Date}</Text>
+                    <Text style={[tableStyles.cell, { width: '30%' }]} numberOfLines={1}>{item.Description}</Text>
+                    <Text style={[tableStyles.cell, { width: '20%' }]} numberOfLines={1}>{item.Category}</Text>
+                    <Text style={[tableStyles.cell, { width: '25%' }]}>₱{item.Amount.toFixed(2)}</Text>
+                </View>
+            );
+        } else {
+            return (
+                <View key={index} style={tableStyles.row}>
+                    <Text style={[tableStyles.cell, { width: '25%' }]}>{item.Date}</Text>
+                    <Text style={[tableStyles.cell, { width: '35%' }]} numberOfLines={1}>{item.Description}</Text>
+                    <Text style={[tableStyles.cell, { width: '20%' }]} numberOfLines={1}>{item.Category}</Text>
+                    <Text style={[tableStyles.cell, { width: '20%', color: item.Type === 'Revenue' ? '#10B981' : '#EF4444' }]}>
+                        {item.Type === 'Revenue' ? '+' : '-'}₱{item.Amount.toFixed(2)}
+                    </Text>
+                </View>
+            );
+        }
+    };
+
+    return (
+        <View style={tableStyles.container}>
+            {renderHeader()}
+            <ScrollView style={tableStyles.scrollView}>
+                {data.length > 0 ? (
+                    data.map((item, index) => renderRow(item, index))
+                ) : (
+                    <View style={tableStyles.emptyState}>
+                        <Text style={tableStyles.emptyText}>No data available</Text>
+                        <Text style={tableStyles.emptySubtext}>Tap the + button to add {type.toLowerCase()} data</Text>
+                    </View>
+                )}
+            </ScrollView>
+        </View>
+    );
 };
-// --- Component 3: Custom Input Field (Simplified for UI) ---
-const CustomInput = ({ label, placeholder, isDropdown = false, multiline = false }: CustomInputProps) => (
-    <View style={formStyles.inputGroup}>
-        <Text style={formStyles.label}>{label}</Text>
-        <TextInput
-            placeholder={placeholder}
-            placeholderTextColor="#9CA3AF"
-            style={[
-                formStyles.input, 
-                isDropdown && formStyles.dropdown,
-                multiline && formStyles.textArea,
-            ]}
-            multiline={multiline}
-            textAlignVertical={multiline ? 'top' : 'center'}
-        />
-        {/* Placeholder for the dropdown arrow or calendar icon if needed */}
-        {isDropdown && <Text style={formStyles.dropdownIcon}>▼</Text>}
-    </View>
-);
 
-// --- Component 4: Forms for Each Tab ---
+//  Component 4: Add Entry Form 
+const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data: Partial<Transaction>) => void; onCancel: () => void }) => {
+    const [formData, setFormData] = useState<any>({
+        date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+        description: '',
+        category: '',
+        amount: '',
+        quantity: '',
+        unitPrice: '',
+        paymentMethod: '',
+        notes: ''
+    });
 
-const ProductForm = () => (
-    <>
-        <Text style={formStyles.formTitle}>Add Product</Text>
-        <CustomInput label="Product Name" placeholder="Input Text" />
-        <CustomInput label="Category" placeholder="Select Category" isDropdown={true} />
-        <CustomInput label="Price" placeholder="Value" />
-        <CustomInput label="Stock Quantity" placeholder="Value" />
-    </>
-);
+    const handleSubmit = () => {
+        if (type === 'Product') {
+            if (!formData.description || !formData.category || !formData.amount) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            onSave({
+                Date: formData.date,
+                Type: 'Product',
+                Description: formData.description,
+                Category: formData.category,
+                Amount: parseFloat(formData.amount),
+            });
+        } else if (type === 'Revenue') {
+            if (!formData.description || !formData.quantity || !formData.unitPrice) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            const total = parseFloat(formData.quantity) * parseFloat(formData.unitPrice);
+            onSave({
+                Date: formData.date,
+                Type: 'Revenue',
+                Description: formData.description,
+                Category: formData.category || 'Sales',
+                Amount: total,
+            });
+        } else if (type === 'Expense') {
+            if (!formData.description || !formData.category || !formData.amount) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            onSave({
+                Date: formData.date,
+                Type: 'Expense',
+                Description: formData.description,
+                Category: formData.category,
+                Amount: parseFloat(formData.amount),
+            });
+        }
+    };
 
-const RevenueForm = () => (
-    <>
-        <Text style={formStyles.formTitle}>Add Revenue</Text>
-        {/* Date input can be complex, using simple text input for UI */}
-        <CustomInput label="Date" placeholder="MM/DD/YYYY" /> 
-        <CustomInput label="Product" placeholder="Input Text" />
-        <CustomInput label="Quantity Sold" placeholder="Value" />
-        <CustomInput label="Unit Price" placeholder="Value" />
-        <CustomInput label="Total Amount" placeholder="Value" />
-        <CustomInput label="Payment Method" placeholder="Select" isDropdown={true} />
-    </>
-);
+    const renderProductForm = () => (
+        <>
+            <Text style={formStyles.formTitle}>Add Product</Text>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Date</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.date}
+                    onChangeText={(text) => setFormData({ ...formData, date: text })}
+                    placeholder="MM/DD/YYYY"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Product Name *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.description}
+                    onChangeText={(text) => setFormData({ ...formData, description: text })}
+                    placeholder="Enter product name"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Category *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.category}
+                    onChangeText={(text) => setFormData({ ...formData, category: text })}
+                    placeholder="e.g., Electronics, Food, Clothing"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Price *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.amount}
+                    onChangeText={(text) => setFormData({ ...formData, amount: text })}
+                    placeholder="0.00"
+                    keyboardType="decimal-pad"
+                />
+            </View>
+        </>
+    );
 
-const ExpenseForm = () => (
-    <>
-        <Text style={formStyles.formTitle}>Add Expense</Text>
-        <CustomInput label="Date" placeholder="MM/DD/YYYY" /> 
-        <CustomInput label="Expense Name" placeholder="Input Text" />
-        <CustomInput label="Category" placeholder="Select Category" isDropdown={true} />
-        <CustomInput label="Amount" placeholder="Value" />
-        <CustomInput label="Notes" placeholder="Input Text" multiline={true} />
-    </>
-);
+    const renderRevenueForm = () => (
+        <>
+            <Text style={formStyles.formTitle}>Add Revenue</Text>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Date</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.date}
+                    onChangeText={(text) => setFormData({ ...formData, date: text })}
+                    placeholder="MM/DD/YYYY"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Product/Service *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.description}
+                    onChangeText={(text) => setFormData({ ...formData, description: text })}
+                    placeholder="Enter product or service name"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Category</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.category}
+                    onChangeText={(text) => setFormData({ ...formData, category: text })}
+                    placeholder="e.g., Sales, Services"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Quantity Sold *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.quantity}
+                    onChangeText={(text) => setFormData({ ...formData, quantity: text })}
+                    placeholder="0"
+                    keyboardType="numeric"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Unit Price *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.unitPrice}
+                    onChangeText={(text) => setFormData({ ...formData, unitPrice: text })}
+                    placeholder="0.00"
+                    keyboardType="decimal-pad"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Payment Method</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.paymentMethod}
+                    onChangeText={(text) => setFormData({ ...formData, paymentMethod: text })}
+                    placeholder="Cash, Card, etc."
+                />
+            </View>
+        </>
+    );
 
-const ImportForm = () => (
+    const renderExpenseForm = () => (
+        <>
+            <Text style={formStyles.formTitle}>Add Expense</Text>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Date</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.date}
+                    onChangeText={(text) => setFormData({ ...formData, date: text })}
+                    placeholder="MM/DD/YYYY"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Expense Name *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.description}
+                    onChangeText={(text) => setFormData({ ...formData, description: text })}
+                    placeholder="Enter expense name"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Category *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.category}
+                    onChangeText={(text) => setFormData({ ...formData, category: text })}
+                    placeholder="e.g., Marketing, Overhead, Utilities"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Amount *</Text>
+                <TextInput
+                    style={formStyles.input}
+                    value={formData.amount}
+                    onChangeText={(text) => setFormData({ ...formData, amount: text })}
+                    placeholder="0.00"
+                    keyboardType="decimal-pad"
+                />
+            </View>
+            <View style={formStyles.inputGroup}>
+                <Text style={formStyles.label}>Notes</Text>
+                <TextInput
+                    style={[formStyles.input, formStyles.textArea]}
+                    value={formData.notes}
+                    onChangeText={(text) => setFormData({ ...formData, notes: text })}
+                    placeholder="Additional details..."
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                />
+            </View>
+        </>
+    );
+
+    return (
+        <View style={formStyles.formContainer}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={formStyles.mainCard}>
+                    {type === 'Product' && renderProductForm()}
+                    {type === 'Revenue' && renderRevenueForm()}
+                    {type === 'Expense' && renderExpenseForm()}
+                </View>
+
+                <View style={formStyles.actionButtons}>
+                    <TouchableOpacity style={[formStyles.button, formStyles.cancelButton]} onPress={onCancel}>
+                        <Text style={formStyles.buttonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[formStyles.button, formStyles.saveButton]} onPress={handleSubmit}>
+                        <Text style={[formStyles.buttonText, formStyles.saveButtonText]}>Save</Text>
+                    </TouchableOpacity>
+                </View>
+            </ScrollView>
+        </View>
+    );
+};
+
+// Component 5: Import Tab 
+const ImportTab = () => (
     <View style={formStyles.importContainer}>
         <Text style={formStyles.formTitle}>Import Data</Text>
         <Text style={formStyles.importDescription}>
-            Upload your existing transaction data from a CSV file. The file should contain columns for Date, Type (Revenue/Expense), Category, and Amount.
+            Upload your existing transaction data from a CSV file. The file should contain columns for Date, Type (Revenue/Expense/Product), Description, Category, and Amount.
         </Text>
         
         <TouchableOpacity style={formStyles.importButton}>
@@ -126,24 +374,28 @@ const ImportForm = () => (
         </TouchableOpacity>
 
         <View style={{ marginTop: 20 }}>
-            <Text style={formStyles.importNoteTitle}>Data Requirement Check:</Text>
+            <Text style={formStyles.importNoteTitle}>CSV Format Requirements:</Text>
             <Text style={formStyles.importNote}>
-                Your current forms cover **Product Inventory**, **Revenue**, and **Expenses**. This is sufficient for the core BI needs.
+                • Date: MM/DD/YYYY format
             </Text>
             <Text style={formStyles.importNote}>
-                **Missing Crucial Entry:** Based on your problem statement ("Track the efficiency of delivery operations"), you might want a dedicated **Delivery Cost/Log** entry form. For now, this is tracked as part of the 'Expense' form, but a dedicated form could enhance tracking delivery efficiency KPIs.
+                • Type: Revenue, Expense, or Product
+            </Text>
+            <Text style={formStyles.importNote}>
+                • Description: Product/Service name or expense description
+            </Text>
+            <Text style={formStyles.importNote}>
+                • Category: Classification of the entry
+            </Text>
+            <Text style={formStyles.importNote}>
+                • Amount: Numeric value (no currency symbols)
             </Text>
         </View>
     </View>
 );
 
-
-type SaveModalProps = {
-    modalVisible: boolean;
-    setModalVisible: (visible: boolean) => void;
-};
-// --- Component 5: Save Confirmation Modal ---
-const SaveModal = ({ modalVisible, setModalVisible }: SaveModalProps) => (
+// Component 6: Success Modal 
+const SaveModal = ({ modalVisible, setModalVisible }: { modalVisible: boolean; setModalVisible: (visible: boolean) => void }) => (
     <Modal
         animationType="fade"
         transparent={true}
@@ -165,82 +417,160 @@ const SaveModal = ({ modalVisible, setModalVisible }: SaveModalProps) => (
     </Modal>
 );
 
-// --- Main Screen Component ---
+//  Main Screen Component
 const EntryScreen = () => {
-    const [activeTab, setActiveTab] = useState('Product');
+    const [activeTab, setActiveTab] = useState<TabType>('Product');
+    const [showForm, setShowForm] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [csvUri, setCsvUri] = useState<string | null>(null);
 
-    const renderForm = () => {
-        switch (activeTab) {
-            case 'Product':
-                return <ProductForm />;
-            case 'Revenue':
-                return <RevenueForm />;
-            case 'Expense':
-                return <ExpenseForm />;
-            case 'Import':
-                return <ImportForm />;
-            default:
-                return <ProductForm />;
+    // Load CSV data
+    useEffect(() => {
+        loadTransactions();
+    }, []);
+
+    const loadTransactions = async () => {
+        try {
+            const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
+            await asset.downloadAsync();
+            if (!asset.localUri) return;
+            
+            setCsvUri(asset.localUri);
+            const csvString = await readAsStringAsync(asset.localUri);
+            
+            Papa.parse(csvString, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: (results: any) => {
+                    const validData = results.data.filter((row: any) => row.Date && row.Amount);
+                    setTransactions(validData);
+                },
+            });
+        } catch (error) {
+            console.error("Failed to load transactions:", error);
+        } finally {
+            setLoading(false);
         }
     };
-    
-    // Function to simulate saving (just for UI demonstration)
-    const handleSave = () => {
-        // In a real app, this would be the save logic
-        setModalVisible(true);
+
+    const saveToCSV = async (newEntry: Partial<Transaction>) => {
+        try {
+            if (!csvUri) return;
+
+            const updatedTransactions = [...transactions, newEntry as Transaction];
+            
+            // Convert to CSV format
+            const csv = Papa.unparse(updatedTransactions, {
+                columns: ['Date', 'Type', 'Description', 'Category', 'Amount']
+            });
+            
+            await writeAsStringAsync(csvUri, csv);
+            setTransactions(updatedTransactions);
+            setModalVisible(true);
+            setShowForm(false);
+        } catch (error) {
+            console.error("Failed to save to CSV:", error);
+            alert("Failed to save data. Please try again.");
+        }
     };
+
+    const getFilteredData = () => {
+        if (activeTab === 'Product') {
+            return transactions.filter(t => t.Type === 'Product');
+        } else if (activeTab === 'Revenue') {
+            return transactions.filter(t => t.Type === 'Revenue');
+        } else if (activeTab === 'Expense') {
+            return transactions.filter(t => t.Type === 'Expense');
+        }
+        return [];
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#4F46E5" />
+                    <Text style={styles.loadingText}>Loading data...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <ScrollView 
-                style={styles.container} 
-                contentContainerStyle={styles.contentContainer}
-                showsVerticalScrollIndicator={false}
-            >
+            <View style={styles.container}>
                 <AppHeader />
                 <EntryTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
-                {/* Main Form/Content Area */}
-                <View style={formStyles.mainCard}>
-                    {renderForm()}
-                </View>
+                {/* Main Content Area */}
+                {showForm ? (
+                    <AddEntryForm 
+                        type={activeTab} 
+                        onSave={saveToCSV} 
+                        onCancel={() => setShowForm(false)} 
+                    />
+                ) : activeTab === 'Import' ? (
+                    <View style={styles.importWrapper}>
+                        <ImportTab />
+                    </View>
+                ) : (
+                    <TableView data={getFilteredData()} type={activeTab} />
+                )}
 
-                {/* Action Buttons (Always present) */}
-                <View style={formStyles.actionButtons}>
-                    <TouchableOpacity style={[formStyles.button, formStyles.backButton]}>
-                        <Text style={formStyles.buttonText}>Back</Text>
-                    </TouchableOpacity>
+                {/* Floating Add Button (not shown on Import tab or when form is visible) */}
+                {activeTab !== 'Import' && !showForm && (
                     <TouchableOpacity 
-                        style={[formStyles.button, formStyles.saveButton]}
-                        onPress={handleSave} // Only used for UI demo
+                        style={styles.floatingButton}
+                        onPress={() => setShowForm(true)}
                     >
-                        <Text style={[formStyles.buttonText, formStyles.saveButtonText]}>Save</Text>
+                        <Text style={styles.floatingButtonText}>+</Text>
                     </TouchableOpacity>
-                </View>
-            </ScrollView>
+                )}
+            </View>
             
             <SaveModal modalVisible={modalVisible} setModalVisible={setModalVisible} />
         </SafeAreaView>
     );
 };
 
-// --- Stylesheets ---
 
-// General Styles
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#F3F4F6' },
     container: { flex: 1, paddingHorizontal: 16, paddingTop: 10 },
-    contentContainer: { paddingBottom: 20 },
-    // Header Styles (reused)
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingText: { marginTop: 10, fontSize: 16, color: '#6B7280' },
+    importWrapper: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginTop: 10 },
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 20, marginBottom: 10 },
     logoGroup: { flexDirection: 'row', alignItems: 'center' },
     logoIcon: { fontSize: 24, marginRight: 8, color: '#4F46E5' },
     logoText: { fontSize: 24, fontWeight: '700', color: '#1F2937' },
     profileImage: { width: 45, height: 45, borderRadius: 22.5, borderWidth: 2, borderColor: '#4F46E5' },
+    floatingButton: {
+        position: 'absolute',
+        bottom: 30,
+        left: 30,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#4F46E5',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 8,
+    },
+    floatingButtonText: {
+        fontSize: 32,
+        color: '#FFFFFF',
+        fontWeight: '300',
+    },
 });
 
-// Tab Navigation Styles
 const tabStyles = StyleSheet.create({
     container: {
         flexDirection: 'row',
@@ -258,7 +588,6 @@ const tabStyles = StyleSheet.create({
     },
     activeTab: {
         backgroundColor: '#FFFFFF',
-        // Shadow for the lifted tab effect
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
@@ -276,8 +605,72 @@ const tabStyles = StyleSheet.create({
     },
 });
 
-// Form and Input Styles
+const tableStyles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 15,
+        marginTop: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3.84,
+        elevation: 3,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        paddingVertical: 12,
+        borderBottomWidth: 2,
+        borderBottomColor: '#E5E7EB',
+        backgroundColor: '#F9FAFB',
+        borderTopLeftRadius: 8,
+        borderTopRightRadius: 8,
+        paddingHorizontal: 10,
+    },
+    headerCell: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#374151',
+        textTransform: 'uppercase',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    row: {
+        flexDirection: 'row',
+        paddingVertical: 12,
+        paddingHorizontal: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    cell: {
+        fontSize: 14,
+        color: '#1F2937',
+    },
+    emptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    emptyText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#9CA3AF',
+        marginBottom: 8,
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: '#D1D5DB',
+    },
+});
+
 const formStyles = StyleSheet.create({
+    formContainer: {
+        flex: 1,
+        marginTop: 10,
+    },
     mainCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 16,
@@ -314,24 +707,14 @@ const formStyles = StyleSheet.create({
         fontSize: 16,
         color: '#1F2937',
     },
-    dropdown: {
-        paddingRight: 40, // Space for the arrow
-    },
     textArea: {
         minHeight: 100,
         paddingVertical: 10,
     },
-    dropdownIcon: {
-        position: 'absolute',
-        right: 15,
-        bottom: 15,
-        color: '#6B7280',
-        fontSize: 10,
-    },
-    // Action Button Styles
     actionButtons: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        marginBottom: 20,
     },
     button: {
         flex: 1,
@@ -341,11 +724,11 @@ const formStyles = StyleSheet.create({
         alignItems: 'center',
         marginHorizontal: 5,
     },
-    backButton: {
+    cancelButton: {
         backgroundColor: '#D1D5DB',
     },
     saveButton: {
-        backgroundColor: '#4F46E5', // Primary Purple
+        backgroundColor: '#4F46E5',
     },
     buttonText: {
         fontSize: 16,
@@ -355,8 +738,6 @@ const formStyles = StyleSheet.create({
     saveButtonText: {
         color: '#FFFFFF',
     },
-
-    // Import Tab Styles
     importContainer: {
         paddingVertical: 10,
     },
@@ -367,7 +748,7 @@ const formStyles = StyleSheet.create({
         lineHeight: 20,
     },
     importButton: {
-        backgroundColor: '#3B82F6', // Blue for upload
+        backgroundColor: '#3B82F6',
         padding: 15,
         borderRadius: 10,
         alignItems: 'center',
@@ -397,13 +778,12 @@ const formStyles = StyleSheet.create({
     },
 });
 
-// Modal Styles
 const modalStyles = StyleSheet.create({
     centeredView: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark overlay
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     modalView: {
         margin: 20,
@@ -420,7 +800,7 @@ const modalStyles = StyleSheet.create({
     },
     checkMark: {
         fontSize: 60,
-        color: '#10B981', // Green checkmark
+        color: '#10B981',
         marginBottom: 10,
         fontWeight: '300',
     },
