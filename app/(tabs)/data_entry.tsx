@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 import Papa from 'papaparse';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // --- Type Definitions ---
@@ -180,7 +180,18 @@ const AddEntryForm = ({ type, onSave, onCancel, initialData }: { type: TabType; 
             notes: ''
         };
         if (initialData) {
-            return { ...defaultState, ...initialData, amount: initialData.Amount?.toString() ?? '' };
+            // Map the initialData (with uppercase keys) to our formData state (with lowercase keys)
+            return {
+                date: initialData.Date ?? defaultState.date,
+                description: initialData.Description ?? defaultState.description,
+                category: initialData.Category ?? defaultState.category,
+                amount: initialData.Amount?.toString() ?? defaultState.amount,
+                quantity: initialData.Quantity?.toString() ?? defaultState.quantity,
+                unitPrice: initialData.UnitPrice?.toString() ?? defaultState.unitPrice,
+                // These fields don't exist on the Transaction type but are in the form
+                paymentMethod: '', 
+                notes: ''
+            };
         }
         return defaultState;
     });
