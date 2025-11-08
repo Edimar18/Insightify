@@ -1,10 +1,10 @@
 import { Asset } from 'expo-asset';
-import { readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 import Papa from 'papaparse';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-// Type Definitions
+// --- Type Definitions ---
 interface Transaction {
   Date: string;
   Type: 'Revenue' | 'Expense' | 'Product';
@@ -17,7 +17,7 @@ interface Transaction {
 
 type TabType = 'Product' | 'Revenue' | 'Expense' | 'Import';
 
-//  Component 1: Custom Header 
+// --- Component 1: Custom Header ---
 const AppHeader = () => {
   return (
     <View style={styles.headerContainer}>
@@ -34,7 +34,7 @@ const AppHeader = () => {
   );
 };
 
-//  Component 2: Tab Navigation 
+// --- Component 2: Tab Navigation ---
 const EntryTabs = ({ activeTab, setActiveTab }: { activeTab: TabType; setActiveTab: (tab: TabType) => void }) => {
     const tabs: TabType[] = ['Product', 'Revenue', 'Expense', 'Import'];
 
@@ -58,7 +58,7 @@ const EntryTabs = ({ activeTab, setActiveTab }: { activeTab: TabType; setActiveT
     );
 };
 
-//  Component 3: Table View 
+// --- Component 3: Table View ---
 const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
     if (type === 'Import') return null;
 
@@ -125,7 +125,7 @@ const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
     );
 };
 
-//  Component 4: Add Entry Form 
+// --- Component 4: Add Entry Form ---
 const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data: Partial<Transaction>) => void; onCancel: () => void }) => {
     const [formData, setFormData] = useState<any>({
         date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
@@ -361,7 +361,7 @@ const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data
     );
 };
 
-// Component 5: Import Tab 
+// --- Component 5: Import Tab ---
 const ImportTab = () => (
     <View style={formStyles.importContainer}>
         <Text style={formStyles.formTitle}>Import Data</Text>
@@ -394,7 +394,7 @@ const ImportTab = () => (
     </View>
 );
 
-// Component 6: Success Modal 
+// --- Component 6: Success Modal ---
 const SaveModal = ({ modalVisible, setModalVisible }: { modalVisible: boolean; setModalVisible: (visible: boolean) => void }) => (
     <Modal
         animationType="fade"
@@ -417,7 +417,7 @@ const SaveModal = ({ modalVisible, setModalVisible }: { modalVisible: boolean; s
     </Modal>
 );
 
-//  Main Screen Component
+// --- Main Screen Component ---
 const EntryScreen = () => {
     const [activeTab, setActiveTab] = useState<TabType>('Product');
     const [showForm, setShowForm] = useState(false);
@@ -432,14 +432,24 @@ const EntryScreen = () => {
     }, []);
 
     const loadTransactions = async () => {
+        const fileUri = documentDirectory + 'transactions.csv';
         try {
-            const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
-            await asset.downloadAsync();
-            if (!asset.localUri) return;
+            const fileInfo = await getInfoAsync(fileUri);
+            let csvString;
+
+            if (!fileInfo.exists) {
+                // If file doesn't exist in document directory, copy it from assets
+                const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
+                await asset.downloadAsync();
+                if (!asset.localUri) return;
+                await copyAsync({ from: asset.localUri, to: fileUri });
+                csvString = await readAsStringAsync(fileUri);
+            } else {
+                // If file exists, read it directly
+                csvString = await readAsStringAsync(fileUri);
+            }
             
-            setCsvUri(asset.localUri);
-            const csvString = await readAsStringAsync(asset.localUri);
-            
+            setCsvUri(fileUri);
             Papa.parse(csvString, {
                 header: true,
                 dynamicTyping: true,
@@ -460,13 +470,16 @@ const EntryScreen = () => {
         try {
             if (!csvUri) return;
 
-            const updatedTransactions = [...transactions, newEntry as Transaction];
+            // Create a new array with the new entry and sort it immediately
+            const updatedTransactions = [...transactions, newEntry as Transaction]
+                .sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()); // Sort newest first
             
             // Convert to CSV format
             const csv = Papa.unparse(updatedTransactions, {
                 columns: ['Date', 'Type', 'Description', 'Category', 'Amount']
             });
             
+            // Overwrite the CSV and update the state with the sorted list
             await writeAsStringAsync(csvUri, csv);
             setTransactions(updatedTransactions);
             setModalVisible(true);
@@ -536,6 +549,7 @@ const EntryScreen = () => {
     );
 };
 
+// --- Stylesheets ---
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#F3F4F6' },

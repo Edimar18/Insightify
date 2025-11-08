@@ -1,8 +1,9 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
-import { readAsStringAsync } from 'expo-file-system/legacy';
+import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync } from 'expo-file-system/legacy';
 import Papa, { ParseResult } from 'papaparse';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
@@ -14,17 +15,14 @@ const AppHeader = () => {
     <View style={styles.headerContainer}>
       {/* Logo and Title */}
       <View style={styles.logoGroup}>
-        {/* Placeholder for Logo Icon - using an emoji for simplicity */}
         <Text style={styles.logoIcon}>📊</Text>
         <Text style={styles.logoText}>Insightify</Text>
       </View>
-      
+
       {/* Profile Picture */}
       <Image
-        // Using a placeholder image for the profile picture
-        source={{ uri: 'https://avatars.githubusercontent.com/u/148160741?v=4' }} 
+        source={{ uri: 'https://avatars.githubusercontent.com/u/148160741?v=4' }}
         style={styles.profileImage}
-        onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
       />
     </View>
   );
@@ -57,39 +55,43 @@ interface Transaction {
 const DashboardScreen = () => {
   // State to hold transaction data loaded from CSV
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadTransactions = async () => {
+    setLoading(true);
+    const fileUri = documentDirectory + 'transactions.csv';
+    try {
+      const fileInfo = await getInfoAsync(fileUri);
+      let csvString;
+
+      if (!fileInfo.exists) {
+        const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
+        await asset.downloadAsync();
+        if (!asset.localUri) return;
+        await copyAsync({ from: asset.localUri, to: fileUri });
+        csvString = await readAsStringAsync(fileUri);
+      } else {
+        csvString = await readAsStringAsync(fileUri);
+      }
+
+      Papa.parse(csvString, {
+        header: true,
+        dynamicTyping: true,
+        complete: (results: ParseResult<Transaction>) => {
+          setTransactions(results.data.filter(row => row.Date && row.Amount));
+        },
+      });
+    } catch (error) {
+      console.error("Failed to load or parse transactions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // --- DATA LOADING LOGIC ---
   useEffect(() => {
-    const loadTransactions = async () => {
-      // 1. Get the asset module for our CSV file
-      const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
-      await asset.downloadAsync(); // Ensure it's downloaded
-
-      if (!asset.localUri) {
-        console.error("Could not find local URI for asset");
-        return;
-      }
-
-      // 2. Read the file content from the local URI
-      const csvString = await readAsStringAsync(asset.localUri);
-
-      // 3. Parse the CSV string into JSON
-      Papa.parse(csvString, {
-        header: true, // Treat the first row as headers
-        dynamicTyping: true, // Automatically convert numbers and booleans
-        complete: (results: ParseResult<Transaction>) => {
-          // 4. Set the parsed data into our component's state
-          setTransactions(results.data);
-        },
-        error: (error: any) => {
-          console.error("Error parsing CSV:", error);
-        },
-      });
-    };
-
     loadTransactions();
   }, []); // The empty dependency array ensures this runs only once on mount
-
 
   // --- DATA PROCESSING LOGIC ---
   // useMemo prevents recalculating on every render unless transactions change
@@ -126,6 +128,10 @@ const DashboardScreen = () => {
       }
     };
   }, [transactions]);
+
+  if (loading) {
+    return <SafeAreaView style={styles.safeArea}><ActivityIndicator size="large" style={{ flex: 1 }} /></SafeAreaView>;
+  }
 
   return (
     // SafeAreaView is essential for iOS and Android to handle notches and system bars
@@ -179,6 +185,10 @@ const DashboardScreen = () => {
         </View>
 
       </ScrollView>
+      {/* Floating Refresh Button */}
+      <TouchableOpacity onPress={loadTransactions} style={styles.floatingRefreshButton}>
+        <MaterialCommunityIcons name="refresh" size={28} color="#1F2937" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -222,12 +232,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1F2937', 
   },
+  refreshIcon: {
+    width: 24,
+    height: 24,
+  },
   profileImage: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    borderWidth: 2,
-    borderColor: '#4F46E5', 
+    width: 45, height: 45, borderRadius: 22.5, borderWidth: 2, borderColor: '#4F46E5',
+  },
+  floatingRefreshButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
   },
 
   // Metrics Grid Styles

@@ -1,5 +1,6 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
-import { readAsStringAsync } from 'expo-file-system/legacy';
+import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync } from 'expo-file-system/legacy';
 import Papa, { ParseResult } from 'papaparse';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,9 +20,8 @@ const AppHeader = () => {
         <Text style={styles.logoText}>Insightify</Text>
       </View>
       <Image
-        source={{ uri: 'https://avatars.githubusercontent.com/u/148160741?v=4' }} 
+        source={{ uri: 'https://avatars.githubusercontent.com/u/148160741?v=4' }}
         style={styles.profileImage}
-        onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
       />
     </View>
   );
@@ -200,29 +200,42 @@ const AnalyticsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>('Month');
 
-  // --- Data Loading ---
-  useEffect(() => {
-    const loadTransactions = async () => {
-      try {
+  const loadTransactions = async () => {
+    setLoading(true);
+    const fileUri = documentDirectory + 'transactions.csv';
+    try {
+      const fileInfo = await getInfoAsync(fileUri);
+      let csvString;
+
+      if (!fileInfo.exists) {
+        // If file doesn't exist, copy it from assets
         const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
         await asset.downloadAsync();
         if (!asset.localUri) return;
-        const csvString = await readAsStringAsync(asset.localUri);
-        Papa.parse(csvString, {
-          header: true,
-          dynamicTyping: true,
-          complete: (results: ParseResult<Transaction>) => {
-            // Filter out any empty rows from CSV parsing
-            const validData = results.data.filter(row => row.Date && row.Amount);
-            setTransactions(validData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime())); // Sort newest first
-          },
-        });
-      } catch (error) {
-        console.error("Failed to load or parse transactions:", error);
-      } finally {
-        setLoading(false);
+        await copyAsync({ from: asset.localUri, to: fileUri });
+        csvString = await readAsStringAsync(fileUri);
+      } else {
+        // If file exists, read it
+        csvString = await readAsStringAsync(fileUri);
       }
-    };
+      Papa.parse(csvString, {
+        header: true,
+        dynamicTyping: true,
+        complete: (results: ParseResult<Transaction>) => {
+          // Filter out any empty rows from CSV parsing
+          const validData = results.data.filter(row => row.Date && row.Amount);
+          setTransactions(validData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime())); // Sort newest first
+        },
+      });
+    } catch (error) {
+      console.error("Failed to load or parse transactions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Data Loading ---
+  useEffect(() => {
     loadTransactions();
   }, []);
 
@@ -298,6 +311,10 @@ const AnalyticsScreen = () => {
         <RecentTransactions transactions={filteredTransactions} />
 
       </ScrollView>
+      {/* Floating Refresh Button */}
+      <TouchableOpacity onPress={loadTransactions} style={styles.floatingRefreshButton}>
+        <MaterialCommunityIcons name="refresh" size={28} color="#1F2937" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -340,12 +357,29 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#1F2937', 
     },
+    refreshIcon: {
+        width: 24,
+        height: 24,
+    },
     profileImage: {
-        width: 45,
-        height: 45,
-        borderRadius: 22.5,
-        borderWidth: 2,
-        borderColor: '#4F46E5', 
+        width: 45, height: 45, borderRadius: 22.5, borderWidth: 2, borderColor: '#4F46E5',
+    },
+    floatingRefreshButton: {
+      position: 'absolute',
+      bottom: 30,
+      right: 30,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: '#FFFFFF',
+      justifyContent: 'center',
+      alignItems: 'center',
+      // Shadow
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 5,
+      elevation: 8,
     },
 
     // Card Common Styles
