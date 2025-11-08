@@ -1,11 +1,13 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 import Papa from 'papaparse';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // --- Type Definitions ---
 interface Transaction {
+  id: string; // Unique identifier
   Date: string;
   Type: 'Revenue' | 'Expense' | 'Product';
   Description: string;
@@ -59,7 +61,21 @@ const EntryTabs = ({ activeTab, setActiveTab }: { activeTab: TabType; setActiveT
 };
 
 // --- Component 3: Table View ---
-const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
+const TableView = ({
+    data,
+    type,
+    selectedId,
+    onSelectRow,
+    onEdit,
+    onDelete
+}: {
+    data: Transaction[];
+    type: TabType;
+    selectedId: string | null;
+    onSelectRow: (id: string) => void;
+    onEdit: (id: string) => void;
+    onDelete: (id: string) => void;
+}) => {
     if (type === 'Import') return null;
 
     const renderHeader = () => {
@@ -85,18 +101,32 @@ const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
     };
 
     const renderRow = (item: Transaction, index: number) => {
+        const isSelected = item.id === selectedId;
         if (type === 'Product') {
             return (
-                <View key={index} style={tableStyles.row}>
-                    <Text style={[tableStyles.cell, { width: '25%' }]}>{item.Date}</Text>
-                    <Text style={[tableStyles.cell, { width: '30%' }]} numberOfLines={1}>{item.Description}</Text>
-                    <Text style={[tableStyles.cell, { width: '20%' }]} numberOfLines={1}>{item.Category}</Text>
-                    <Text style={[tableStyles.cell, { width: '25%' }]}>₱{item.Amount.toFixed(2)}</Text>
-                </View>
+                <Pressable key={item.id} onPress={() => onSelectRow(item.id)}>
+                    <View style={[tableStyles.row, isSelected && tableStyles.selectedRow]}>
+                        <Text style={[tableStyles.cell, { width: '25%' }]}>{item.Date}</Text>
+                        <Text style={[tableStyles.cell, { width: '30%' }]} numberOfLines={1}>{item.Description}</Text>
+                        <Text style={[tableStyles.cell, { width: '20%' }]} numberOfLines={1}>{item.Category}</Text>
+                        <Text style={[tableStyles.cell, { width: '25%' }]}>₱{item.Amount.toFixed(2)}</Text>
+                        {isSelected && (
+                            <View style={tableStyles.actionIcons}>
+                                <TouchableOpacity onPress={() => onEdit(item.id)} style={tableStyles.iconButton}>
+                                    <MaterialCommunityIcons name="pencil" size={20} color="#4F46E5" />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => onDelete(item.id)} style={tableStyles.iconButton}>
+                                    <MaterialCommunityIcons name="delete" size={20} color="#EF4444" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </Pressable>
             );
         } else {
             return (
-                <View key={index} style={tableStyles.row}>
+                <Pressable key={item.id} onPress={() => onSelectRow(item.id)}>
+                    <View style={[tableStyles.row, isSelected && tableStyles.selectedRow]}>
                     <Text style={[tableStyles.cell, { width: '25%' }]}>{item.Date}</Text>
                     <Text style={[tableStyles.cell, { width: '35%' }]} numberOfLines={1}>{item.Description}</Text>
                     <Text style={[tableStyles.cell, { width: '20%' }]} numberOfLines={1}>{item.Category}</Text>
@@ -104,6 +134,17 @@ const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
                         {item.Type === 'Revenue' ? '+' : '-'}₱{item.Amount.toFixed(2)}
                     </Text>
                 </View>
+                {isSelected && (
+                    <View style={tableStyles.actionIconsOnSelected}>
+                        <TouchableOpacity onPress={() => onEdit(item.id)} style={tableStyles.iconButton}>
+                            <MaterialCommunityIcons name="pencil" size={20} color="#4F46E5" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => onDelete(item.id)} style={tableStyles.iconButton}>
+                            <MaterialCommunityIcons name="delete" size={20} color="#EF4444" />
+                        </TouchableOpacity>
+                    </View>
+                )}
+                </Pressable>
             );
         }
     };
@@ -126,16 +167,22 @@ const TableView = ({ data, type }: { data: Transaction[]; type: TabType }) => {
 };
 
 // --- Component 4: Add Entry Form ---
-const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data: Partial<Transaction>) => void; onCancel: () => void }) => {
-    const [formData, setFormData] = useState<any>({
-        date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-        description: '',
-        category: '',
-        amount: '',
-        quantity: '',
-        unitPrice: '',
-        paymentMethod: '',
-        notes: ''
+const AddEntryForm = ({ type, onSave, onCancel, initialData }: { type: TabType; onSave: (data: Partial<Transaction>) => void; onCancel: () => void; initialData?: Partial<Transaction> | null }) => {
+    const [formData, setFormData] = useState<any>(() => {
+        const defaultState = {
+            date: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+            description: '',
+            category: '',
+            amount: '',
+            quantity: '',
+            unitPrice: '',
+            paymentMethod: '',
+            notes: ''
+        };
+        if (initialData) {
+            return { ...defaultState, ...initialData, amount: initialData.Amount?.toString() ?? '' };
+        }
+        return defaultState;
     });
 
     const handleSubmit = () => {
@@ -150,6 +197,7 @@ const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data
                 Description: formData.description,
                 Category: formData.category,
                 Amount: parseFloat(formData.amount),
+                id: initialData?.id // Pass id if editing
             });
         } else if (type === 'Revenue') {
             if (!formData.description || !formData.quantity || !formData.unitPrice) {
@@ -163,6 +211,7 @@ const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data
                 Description: formData.description,
                 Category: formData.category || 'Sales',
                 Amount: total,
+                id: initialData?.id // Pass id if editing
             });
         } else if (type === 'Expense') {
             if (!formData.description || !formData.category || !formData.amount) {
@@ -175,13 +224,14 @@ const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data
                 Description: formData.description,
                 Category: formData.category,
                 Amount: parseFloat(formData.amount),
+                id: initialData?.id // Pass id if editing
             });
         }
     };
 
     const renderProductForm = () => (
         <>
-            <Text style={formStyles.formTitle}>Add Product</Text>
+            <Text style={formStyles.formTitle}>{initialData ? 'Edit' : 'Add'} Product</Text>
             <View style={formStyles.inputGroup}>
                 <Text style={formStyles.label}>Date</Text>
                 <TextInput
@@ -224,7 +274,7 @@ const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data
 
     const renderRevenueForm = () => (
         <>
-            <Text style={formStyles.formTitle}>Add Revenue</Text>
+            <Text style={formStyles.formTitle}>{initialData ? 'Edit' : 'Add'} Revenue</Text>
             <View style={formStyles.inputGroup}>
                 <Text style={formStyles.label}>Date</Text>
                 <TextInput
@@ -286,7 +336,7 @@ const AddEntryForm = ({ type, onSave, onCancel }: { type: TabType; onSave: (data
 
     const renderExpenseForm = () => (
         <>
-            <Text style={formStyles.formTitle}>Add Expense</Text>
+            <Text style={formStyles.formTitle}>{initialData ? 'Edit' : 'Add'} Expense</Text>
             <View style={formStyles.inputGroup}>
                 <Text style={formStyles.label}>Date</Text>
                 <TextInput
@@ -425,6 +475,8 @@ const EntryScreen = () => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [csvUri, setCsvUri] = useState<string | null>(null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
     // Load CSV data
     useEffect(() => {
@@ -455,8 +507,11 @@ const EntryScreen = () => {
                 dynamicTyping: true,
                 skipEmptyLines: true,
                 complete: (results: any) => {
-                    const validData = results.data.filter((row: any) => row.Date && row.Amount);
-                    setTransactions(validData);
+                    const validData = results.data
+                        .filter((row: any) => row.Date && row.Amount)
+                        // Add a unique ID to each row for selection handling
+                        .map((row: any, index: number) => ({ ...row, id: `${new Date(row.Date).getTime()}-${index}` }));
+                    setTransactions(validData.sort((a: Transaction, b: Transaction) => new Date(b.Date).getTime() - new Date(a.Date).getTime()));
                 },
             });
         } catch (error) {
@@ -466,28 +521,75 @@ const EntryScreen = () => {
         }
     };
 
-    const saveToCSV = async (newEntry: Partial<Transaction>) => {
+    const handleSave = async (entry: Partial<Transaction>) => {
+        setLoading(true);
+        let updatedTransactions;
+
+        if (entry.id) { // This is an update
+            updatedTransactions = transactions.map(t => t.id === entry.id ? { ...t, ...entry } as Transaction : t);
+        } else { // This is a new entry
+            const newEntryWithId = { ...entry, id: `${new Date(entry.Date!).getTime()}-${transactions.length}` } as Transaction;
+            updatedTransactions = [...transactions, newEntryWithId];
+        }
+
+        // Sort and save
+        const sortedTransactions = updatedTransactions.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+        await writeToCsv(sortedTransactions);
+
+        setTransactions(sortedTransactions);
+        setModalVisible(true);
+        setShowForm(false);
+        setEditingTransaction(null);
+        setLoading(false);
+    };
+
+    const handleDelete = (id: string) => {
+        Alert.alert(
+            "Delete Transaction",
+            "Are you sure you want to delete this entry? This action cannot be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        setLoading(true);
+                        const updatedTransactions = transactions.filter(t => t.id !== id);
+                        await writeToCsv(updatedTransactions);
+                        setTransactions(updatedTransactions);
+                        setSelectedId(null);
+                        setLoading(false);
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEdit = (id: string) => {
+        const transactionToEdit = transactions.find(t => t.id === id);
+        if (transactionToEdit) {
+            setEditingTransaction(transactionToEdit);
+            setShowForm(true);
+        }
+    };
+
+    const writeToCsv = async (data: Transaction[]) => {
         try {
             if (!csvUri) return;
-
-            // Create a new array with the new entry and sort it immediately
-            const updatedTransactions = [...transactions, newEntry as Transaction]
-                .sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime()); // Sort newest first
-            
-            // Convert to CSV format
-            const csv = Papa.unparse(updatedTransactions, {
-                columns: ['Date', 'Type', 'Description', 'Category', 'Amount']
+            // Sanitize data for unparsing (remove our internal 'id')
+            const dataToSave = data.map(({ id, ...rest }) => rest);
+            const csv = Papa.unparse(dataToSave, {
+                columns: ['Date', 'Type', 'Description', 'Category', 'Amount', 'Quantity', 'UnitPrice']
             });
-            
-            // Overwrite the CSV and update the state with the sorted list
             await writeAsStringAsync(csvUri, csv);
-            setTransactions(updatedTransactions);
-            setModalVisible(true);
-            setShowForm(false);
         } catch (error) {
             console.error("Failed to save to CSV:", error);
             alert("Failed to save data. Please try again.");
         }
+    };
+
+    const handleSelectRow = (id: string) => {
+        setSelectedId(prevId => (prevId === id ? null : id)); // Toggle selection
     };
 
     const getFilteredData = () => {
@@ -521,16 +623,20 @@ const EntryScreen = () => {
                 {/* Main Content Area */}
                 {showForm ? (
                     <AddEntryForm 
-                        type={activeTab} 
-                        onSave={saveToCSV} 
-                        onCancel={() => setShowForm(false)} 
+                        type={editingTransaction?.Type as TabType || activeTab}
+                        onSave={handleSave}
+                        onCancel={() => {
+                            setShowForm(false);
+                            setEditingTransaction(null);
+                        }}
+                        initialData={editingTransaction}
                     />
                 ) : activeTab === 'Import' ? (
                     <View style={styles.importWrapper}>
                         <ImportTab />
                     </View>
                 ) : (
-                    <TableView data={getFilteredData()} type={activeTab} />
+                    <TableView data={getFilteredData()} type={activeTab} selectedId={selectedId} onSelectRow={handleSelectRow} onEdit={handleEdit} onDelete={handleDelete} />
                 )}
 
                 {/* Floating Add Button (not shown on Import tab or when form is visible) */}
@@ -661,6 +767,31 @@ const tableStyles = StyleSheet.create({
     cell: {
         fontSize: 14,
         color: '#1F2937',
+    },
+    selectedRow: {
+        backgroundColor: '#E0E7FF', // A light indigo for highlighting
+    },
+    actionIcons: {
+        position: 'absolute',
+        right: 10,
+        top: 0,
+        bottom: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E0E7FF', // Match selected background
+        paddingLeft: 10,
+    },
+    actionIconsOnSelected: {
+        position: 'absolute',
+        right: 15,
+        top: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    iconButton: {
+        padding: 8,
+        borderRadius: 20,
+        marginLeft: 5,
     },
     emptyState: {
         flex: 1,
