@@ -241,13 +241,23 @@ const AnalyticsScreen = () => {
 
   // --- Data Processing ---
   const { pieChartData, lineChartData, lineChartTotals, filteredTransactions } = useMemo(() => {
+    // Helper to reliably parse MM/DD/YYYY dates
+    const parseDate = (dateString: string) => {
+        const parts = dateString.split('/');
+        // new Date(year, monthIndex, day)
+        return new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
+    };
+
     const now = new Date('2025-10-17T12:00:00Z'); // Use a fixed date for consistent filtering with dummy data
-    const filtered = transactions.filter(t => {
-        const tDate = new Date(t.Date);
+    let filtered = transactions.filter(t => {
+        const tDate = parseDate(t.Date);
         if (activeFilter === 'Day') return tDate.toDateString() === now.toDateString();
         if (activeFilter === 'Week') return (now.getTime() - tDate.getTime()) / (1000 * 3600 * 24) <= 7;
         return true; // 'Month' shows all data for this example
     });
+
+    // Ensure transactions are sorted with the newest first
+    filtered.sort((a, b) => parseDate(b.Date).getTime() - parseDate(a.Date).getTime());
 
     // Pie Chart (Expenses by Category)
     const expenseGroups = filtered.filter(t => t.Type === 'Expense').reduce((acc, t) => {
@@ -272,7 +282,7 @@ const AnalyticsScreen = () => {
         return acc;
     }, {} as Record<string, { revenue: number; expense: number }>);
 
-    const sortedDays = Object.keys(profitByDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const sortedDays = Object.keys(profitByDay).sort((a, b) => parseDate(a).getTime() - parseDate(b).getTime());
     const lineData = {
         labels: sortedDays.map(day => new Date(day).toLocaleDateString('en-US', { day: 'numeric' })),
         datasets: [{ data: sortedDays.map(day => profitByDay[day].revenue - profitByDay[day].expense) }]
