@@ -1,11 +1,13 @@
+import { useRouter } from 'expo-router';
 import { AnimatePresence, MotiView } from 'moti';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 const { height, width } = Dimensions.get('window');
 
 const Login = () => {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'login' | 'signup'>('login');
 
@@ -14,10 +16,21 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
   const logoSource = { uri: 'https://via.placeholder.com/150x150.png?text=Insightify' };
 
   const toggleFormMode = () => {
     setFormMode(prev => (prev === 'login' ? 'signup' : 'login'));
+  };
+
+  const handleLogin = () => {
+    if (username.toLowerCase() === 'edimar' && password === '12345') {
+      router.replace('/home');
+    } else {
+      Alert.alert('Login Failed', 'Invalid username or password.');
+    }
   };
 
   return (
@@ -65,10 +78,22 @@ const Login = () => {
                   >
                     <Text style={styles.loginTitle}>Log In</Text>
                     <Text style={styles.label}>Username</Text>
-                    <TextInput placeholder="Enter username" placeholderTextColor="#999" style={styles.input} />
+                    <TextInput 
+                      placeholder="Enter username" 
+                      placeholderTextColor="#999" 
+                      style={styles.input}
+                      value={username}
+                      onChangeText={setUsername}
+                    />
                     <Text style={styles.label}>Password</Text>
-                    <TextInput placeholder="Enter password" placeholderTextColor="#999" secureTextEntry style={styles.input} />
-                    <TouchableOpacity style={styles.button}>
+                    <TextInput 
+                      placeholder="Enter password" 
+                      placeholderTextColor="#999" 
+                      secureTextEntry style={styles.input} 
+                      value={password}
+                      onChangeText={setPassword}
+                    />
+                    <TouchableOpacity style={styles.button} onPress={handleLogin}>
                       <Text style={styles.buttonText}>Log in</Text>
                     </TouchableOpacity>
                   </MotiView>
