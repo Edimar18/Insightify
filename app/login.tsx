@@ -1,19 +1,50 @@
 import { useRouter } from 'expo-router';
 import { AnimatePresence, MotiView } from 'moti';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { 
+  Alert,
+  Dimensions,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 const { height, width } = Dimensions.get('window');
 
 const Login = () => {
   const router = useRouter();
+
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'login' | 'signup'>('login');
 
+  // Lift amount when keyboard shows
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
   useEffect(() => {
-    const timer = setTimeout(() => setShowForm(true), 1200); // delay before form animation
+    const timer = setTimeout(() => setShowForm(true), 1200);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Keyboard lift animation effect
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardOffset(e.endCoordinates.height * 0.01); // adjust lift strength
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardOffset(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const [username, setUsername] = useState('');
@@ -34,111 +65,135 @@ const Login = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Logo + App Name */}
-      <MotiView
-        from={{ opacity: 0, translateY: 2.5 }}
-        animate={{ opacity: 1, translateY: showForm ? -height * 0.5 : 0 }} // move up when form appears
-        transition={{ type: 'timing', duration: 800 }}
-        style={styles.logoContainer}
-      >
-        <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.appName}>Insightify</Text>
-      </MotiView>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.container}>
+        
+        {/* Logo + App Name */}
+        <MotiView
+          from={{ opacity: 0, translateY: 2.5 }}
+          animate={{ opacity: 1, translateY: showForm ? -height * 0.5 : 0 }}
+          transition={{ type: 'timing', duration: 800 }}
+          style={styles.logoContainer}
+        >
+          <Image source={logoSource} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.appName}>Insightify</Text>
+        </MotiView>
 
-      {/* Login Form */}
-      <AnimatePresence>
-        {showForm && (
-          <MotiView
-            from={{ translateY: height }}
-            animate={{ translateY: 0 }}
-            exit={{ translateY: height }}
-            transition={{ type: 'spring', damping: 35, stiffness: 90 }}
-            style={styles.formWrapper}
-          >
-            {/* Triangle shape */}
-            <Svg height="100" width={width} style={styles.triangle}>
-              <Path d={`M0 100 L${width / 2} 0 L${width} 100 Z`} fill="#F2F4F7" />
-            </Svg>
-
-            {/* Form container */}
-            <KeyboardAvoidingView 
-              behavior={Platform.OS === "ios" ? "padding" : "height"} 
-              style={styles.formContainer}
+        {/* Login Form */}
+        <AnimatePresence>
+          {showForm && (
+            <MotiView
+              from={{ translateY: height }}
+              animate={{ 
+                translateY: -keyboardOffset, // lift form when typing
+              }}
+              exit={{ translateY: height }}
+              transition={{ type: 'timing', duration: 300 }}
+              style={styles.formWrapper}
             >
-              <AnimatePresence exitBeforeEnter>
-                {formMode === 'login' ? (
-                  <MotiView
-                    key="login"
-                    from={{ opacity: 0, translateX: -50 }}
-                    animate={{ opacity: 1, translateX: 0 }}
-                    exit={{ opacity: 0, translateX: 50 }}
-                    transition={{ type: 'timing', duration: 300 }}
-                    style={styles.innerFormContainer}
-                  >
-                    <Text style={styles.loginTitle}>Log In</Text>
-                    <Text style={styles.label}>Username</Text>
-                    <TextInput 
-                      placeholder="Enter username" 
-                      placeholderTextColor="#999" 
-                      style={styles.input}
-                      value={username}
-                      onChangeText={setUsername}
-                    />
-                    <Text style={styles.label}>Password</Text>
-                    <TextInput 
-                      placeholder="Enter password" 
-                      placeholderTextColor="#999" 
-                      secureTextEntry style={styles.input} 
-                      value={password}
-                      onChangeText={setPassword}
-                    />
-                    <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                      <Text style={styles.buttonText}>Log in</Text>
-                    </TouchableOpacity>
-                  </MotiView>
-                ) : (
-                  <MotiView
-                    key="signup"
-                    from={{ opacity: 0, translateX: 50 }}
-                    animate={{ opacity: 1, translateX: 0 }}
-                    exit={{ opacity: 0, translateX: -50 }}
-                    transition={{ type: 'timing', duration: 300 }}
-                    style={styles.innerFormContainer}
-                  >
-                    <Text style={styles.loginTitle}>Sign Up</Text>
-                    <Text style={styles.label}>Email</Text>
-                    <TextInput placeholder="Enter your email" placeholderTextColor="#999" style={styles.input} keyboardType="email-address" />
-                    <Text style={styles.label}>Username</Text>
-                    <TextInput placeholder="Choose a username" placeholderTextColor="#999" style={styles.input} />
-                    <Text style={styles.label}>Password</Text>
-                    <TextInput placeholder="Create a password" placeholderTextColor="#999" secureTextEntry style={styles.input} />
-                    <TouchableOpacity style={styles.button}>
-                      <Text style={styles.buttonText}>Create Account</Text>
-                    </TouchableOpacity>
-                  </MotiView>
-                )}
-              </AnimatePresence>
+              {/* Triangle shape */}
+              <Svg height="100" width={width} style={styles.triangle}>
+                <Path d={`M0 100 L${width / 2} 0 L${width} 100 Z`} fill="#F2F4F7" />
+              </Svg>
 
-              <TouchableOpacity onPress={toggleFormMode} style={styles.toggleButton}>
-                <Text style={styles.toggleText}>
-                  {formMode === 'login'
-                    ? "Don't have an account? "
-                    : 'Already have an account? '}
-                  <Text style={styles.toggleTextHighlight}>
-                    {formMode === 'login' ? 'Sign Up' : 'Log In'}
+              {/* Form container */}
+              <View style={styles.formContainer}>
+                <AnimatePresence exitBeforeEnter>
+                  {formMode === 'login' ? (
+                    <MotiView
+                      key="login"
+                      from={{ opacity: 0, translateX: -50 }}
+                      animate={{ opacity: 1, translateX: 0 }}
+                      exit={{ opacity: 0, translateX: 50 }}
+                      transition={{ type: 'timing', duration: 300 }}
+                      style={styles.innerFormContainer}
+                    >
+                      <Text style={styles.loginTitle}>Log In</Text>
+                      <Text style={styles.label}>Username</Text>
+                      <TextInput 
+                        placeholder="Enter username" 
+                        placeholderTextColor="#999"
+                        style={styles.input}
+                        value={username}
+                        onChangeText={setUsername}
+                      />
+                      <Text style={styles.label}>Password</Text>
+                      <TextInput 
+                        placeholder="Enter password"
+                        placeholderTextColor="#999"
+                        secureTextEntry
+                        style={styles.input}
+                        value={password}
+                        onChangeText={setPassword}
+                      />
+
+                      <TouchableOpacity style={styles.button} onPress={handleLogin}>
+                        <Text style={styles.buttonText}>Log in</Text>
+                      </TouchableOpacity>
+                    </MotiView>
+                  ) : (
+                    <MotiView
+                      key="signup"
+                      from={{ opacity: 0, translateX: 50 }}
+                      animate={{ opacity: 1, translateX: 0 }}
+                      exit={{ opacity: 0, translateX: -50 }}
+                      transition={{ type: 'timing', duration: 300 }}
+                      style={styles.innerFormContainer}
+                    >
+                      <Text style={styles.loginTitle}>Sign Up</Text>
+                      <Text style={styles.label}>Email</Text>
+                      <TextInput 
+                        placeholder="Enter your email" 
+                        placeholderTextColor="#999"
+                        style={styles.input}
+                        keyboardType="email-address"
+                      />
+                      <Text style={styles.label}>Username</Text>
+                      <TextInput 
+                        placeholder="Choose a username" 
+                        placeholderTextColor="#999"
+                        style={styles.input}
+                      />
+                      <Text style={styles.label}>Password</Text>
+                      <TextInput 
+                        placeholder="Create a password" 
+                        placeholderTextColor="#999"
+                        secureTextEntry
+                        style={styles.input}
+                      />
+
+                      <TouchableOpacity style={styles.button}>
+                        <Text style={styles.buttonText}>Create Account</Text>
+                      </TouchableOpacity>
+                    </MotiView>
+                  )}
+                </AnimatePresence>
+
+                <TouchableOpacity onPress={toggleFormMode} style={styles.toggleButton}>
+                  <Text style={styles.toggleText}>
+                    {formMode === 'login'
+                      ? "Don't have an account? "
+                      : 'Already have an account? '}
+                    <Text style={styles.toggleTextHighlight}>
+                      {formMode === 'login' ? 'Sign Up' : 'Log In'}
+                    </Text>
                   </Text>
-                </Text>
-              </TouchableOpacity>
-            </KeyboardAvoidingView>
-          </MotiView>
-        )}
-      </AnimatePresence>
-    </View>
+                </TouchableOpacity>
+              </View>
+            </MotiView>
+          )}
+        </AnimatePresence>
+
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
 export default Login;
+
 
 const styles = StyleSheet.create({
   container: {
@@ -149,10 +204,9 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     position: 'absolute',
-    top: '50%', // initially center vertically
+    top: '50%',
     alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ translateY: -60 }], // offset half the logo+text height
+    transform: [{ translateY: -60 }],
   },
   logo: {
     width: 120,
@@ -181,8 +235,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 40,
     paddingBottom: 20,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
   },
   innerFormContainer: {
     width: '100%',
@@ -193,9 +245,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000',
     marginBottom: 25,
-    textShadowColor: '#ccc',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
   label: {
     alignSelf: 'flex-start',
@@ -218,9 +267,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
-    shadowColor: '#007BFF',
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
   },
   buttonText: {
     color: '#fff',
