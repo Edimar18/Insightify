@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
+import * as DocumentPicker from 'expo-document-picker';
 import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 import Papa from 'papaparse';
 import React, { useEffect, useState } from 'react';
@@ -423,14 +424,14 @@ const AddEntryForm = ({ type, onSave, onCancel, initialData }: { type: TabType; 
 };
 
 // --- Component 5: Import Tab ---
-const ImportTab = () => (
+const ImportTab = ({ onImport }: { onImport: () => void }) => (
     <View style={formStyles.importContainer}>
         <Text style={formStyles.formTitle}>Import Data</Text>
         <Text style={formStyles.importDescription}>
             Upload your existing transaction data from a CSV file. The file should contain columns for Date, Type (Revenue/Expense/Product), Description, Category, and Amount.
         </Text>
         
-        <TouchableOpacity style={formStyles.importButton}>
+        <TouchableOpacity style={formStyles.importButton} onPress={onImport}>
             <Text style={formStyles.importButtonText}>Select CSV File to Import</Text>
         </TouchableOpacity>
 
@@ -599,6 +600,33 @@ const EntryScreen = () => {
         }
     };
 
+    const handleImport = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'text/csv',
+                copyToCacheDirectory: true,
+            });
+
+            if (result.type === 'success') {
+                setLoading(true);
+                const destinationUri = documentDirectory + 'transactions.csv';
+                await copyAsync({
+                    from: result.uri,
+                    to: destinationUri
+                });
+                
+                Alert.alert("Import Successful", "The new CSV file has been imported. Reloading data...");
+                await loadTransactions(); // Reload data from the new file
+            } else {
+                Alert.alert("Import Cancelled", "No file was selected.");
+            }
+        } catch (error) {
+            console.error("Error during import:", error);
+            Alert.alert("Import Failed", "An error occurred while importing the file. Please ensure it is a valid CSV.");
+            setLoading(false);
+        }
+    };
+
     const handleSelectRow = (id: string) => {
         setSelectedId(prevId => (prevId === id ? null : id)); // Toggle selection
     };
@@ -644,7 +672,7 @@ const EntryScreen = () => {
                     />
                 ) : activeTab === 'Import' ? (
                     <View style={styles.importWrapper}>
-                        <ImportTab />
+                        <ImportTab onImport={handleImport} />
                     </View>
                 ) : (
                     <TableView data={getFilteredData()} type={activeTab} selectedId={selectedId} onSelectRow={handleSelectRow} onEdit={handleEdit} onDelete={handleDelete} />
