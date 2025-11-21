@@ -1,12 +1,13 @@
 import { AnimatePresence, MotiView } from 'moti';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 const { height, width } = Dimensions.get('window');
 
 const Login = () => {
   const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<'login' | 'signup'>('login');
 
   useEffect(() => {
     const timer = setTimeout(() => setShowForm(true), 1200); // delay before form animation
@@ -14,6 +15,10 @@ const Login = () => {
   }, []);
 
   const logoSource = { uri: 'https://via.placeholder.com/150x150.png?text=Insightify' };
+
+  const toggleFormMode = () => {
+    setFormMode(prev => (prev === 'login' ? 'signup' : 'login'));
+  };
 
   return (
     <View style={styles.container}>
@@ -44,28 +49,63 @@ const Login = () => {
             </Svg>
 
             {/* Form container */}
-            <View style={styles.formContainer}>
-              <Text style={styles.loginTitle}>Log In</Text>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === "ios" ? "padding" : "height"} 
+              style={styles.formContainer}
+            >
+              <AnimatePresence exitBeforeEnter>
+                {formMode === 'login' ? (
+                  <MotiView
+                    key="login"
+                    from={{ opacity: 0, translateX: -50 }}
+                    animate={{ opacity: 1, translateX: 0 }}
+                    exit={{ opacity: 0, translateX: 50 }}
+                    transition={{ type: 'timing', duration: 300 }}
+                    style={styles.innerFormContainer}
+                  >
+                    <Text style={styles.loginTitle}>Log In</Text>
+                    <Text style={styles.label}>Username</Text>
+                    <TextInput placeholder="Enter username" placeholderTextColor="#999" style={styles.input} />
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput placeholder="Enter password" placeholderTextColor="#999" secureTextEntry style={styles.input} />
+                    <TouchableOpacity style={styles.button}>
+                      <Text style={styles.buttonText}>Log in</Text>
+                    </TouchableOpacity>
+                  </MotiView>
+                ) : (
+                  <MotiView
+                    key="signup"
+                    from={{ opacity: 0, translateX: 50 }}
+                    animate={{ opacity: 1, translateX: 0 }}
+                    exit={{ opacity: 0, translateX: -50 }}
+                    transition={{ type: 'timing', duration: 300 }}
+                    style={styles.innerFormContainer}
+                  >
+                    <Text style={styles.loginTitle}>Sign Up</Text>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput placeholder="Enter your email" placeholderTextColor="#999" style={styles.input} keyboardType="email-address" />
+                    <Text style={styles.label}>Username</Text>
+                    <TextInput placeholder="Choose a username" placeholderTextColor="#999" style={styles.input} />
+                    <Text style={styles.label}>Password</Text>
+                    <TextInput placeholder="Create a password" placeholderTextColor="#999" secureTextEntry style={styles.input} />
+                    <TouchableOpacity style={styles.button}>
+                      <Text style={styles.buttonText}>Create Account</Text>
+                    </TouchableOpacity>
+                  </MotiView>
+                )}
+              </AnimatePresence>
 
-              <Text style={styles.label}>Username</Text>
-              <TextInput
-                placeholder="Enter username"
-                placeholderTextColor="#999"
-                style={styles.input}
-              />
-
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                placeholder="Enter password"
-                placeholderTextColor="#999"
-                secureTextEntry
-                style={styles.input}
-              />
-
-              <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>Log in</Text>
+              <TouchableOpacity onPress={toggleFormMode} style={styles.toggleButton}>
+                <Text style={styles.toggleText}>
+                  {formMode === 'login'
+                    ? "Don't have an account? "
+                    : 'Already have an account? '}
+                  <Text style={styles.toggleTextHighlight}>
+                    {formMode === 'login' ? 'Sign Up' : 'Log In'}
+                  </Text>
+                </Text>
               </TouchableOpacity>
-            </View>
+            </KeyboardAvoidingView>
           </MotiView>
         )}
       </AnimatePresence>
@@ -114,9 +154,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F4F7',
     width: '100%',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingTop: 40,
+    paddingBottom: 20,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
+  },
+  innerFormContainer: {
+    width: '100%',
+    alignItems: 'center',
   },
   loginTitle: {
     fontSize: 28,
@@ -157,6 +202,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  toggleButton: {
+    marginTop: 20,
+    padding: 10,
+  },
+  toggleText: {
+    color: '#607080',
+    fontSize: 14,
+  },
+  toggleTextHighlight: {
+    color: '#007BFF',
+    fontWeight: '700',
+  },
 });
-
-
