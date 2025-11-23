@@ -1,9 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync } from 'expo-file-system/legacy';
 import Papa, { ParseResult } from 'papaparse';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
@@ -56,6 +55,7 @@ const DashboardScreen = () => {
   // State to hold transaction data loaded from CSV
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadTransactions = async () => {
     setLoading(true);
@@ -92,6 +92,11 @@ const DashboardScreen = () => {
   useEffect(() => {
     loadTransactions();
   }, []); // The empty dependency array ensures this runs only once on mount
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    loadTransactions().finally(() => setRefreshing(false));
+  }, []);
 
   // --- DATA PROCESSING LOGIC ---
   // useMemo prevents recalculating on every render unless transactions change
@@ -140,6 +145,9 @@ const DashboardScreen = () => {
         style={styles.container} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false} // Hides the scroll bar for a cleaner look
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4F46E5" />
+        }
       >
         
         {/* The AppHeader is included here so it scrolls with the rest of the content */}
@@ -185,10 +193,6 @@ const DashboardScreen = () => {
         </View>
 
       </ScrollView>
-      {/* Floating Refresh Button */}
-      <TouchableOpacity onPress={loadTransactions} style={styles.floatingRefreshButton}>
-        <MaterialCommunityIcons name="refresh" size={28} color="#1F2937" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -238,23 +242,6 @@ const styles = StyleSheet.create({
   },
   profileImage: {
     width: 45, height: 45, borderRadius: 22.5, borderWidth: 2, borderColor: '#4F46E5',
-  },
-  floatingRefreshButton: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    // Shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
   },
 
   // Metrics Grid Styles
@@ -325,3 +312,4 @@ const styles = StyleSheet.create({
 });
 
 export default DashboardScreen;
+

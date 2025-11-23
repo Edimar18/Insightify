@@ -1,9 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync } from 'expo-file-system/legacy';
 import Papa, { ParseResult } from 'papaparse';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
@@ -199,6 +198,7 @@ const AnalyticsScreen = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>('Month');
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadTransactions = async () => {
     setLoading(true);
@@ -237,6 +237,11 @@ const AnalyticsScreen = () => {
   // --- Data Loading ---
   useEffect(() => {
     loadTransactions();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadTransactions().finally(() => setRefreshing(false));
   }, []);
 
   // --- Data Processing ---
@@ -307,6 +312,9 @@ const AnalyticsScreen = () => {
         style={styles.screenContainer} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4F46E5" />
+        }
       >
         <AppHeader />
         <TimeFilter selected={activeFilter} onSelect={setActiveFilter} />
@@ -321,10 +329,6 @@ const AnalyticsScreen = () => {
         <RecentTransactions transactions={filteredTransactions} />
 
       </ScrollView>
-      {/* Floating Refresh Button */}
-      <TouchableOpacity onPress={loadTransactions} style={styles.floatingRefreshButton}>
-        <MaterialCommunityIcons name="refresh" size={28} color="#1F2937" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -373,23 +377,6 @@ const styles = StyleSheet.create({
     },
     profileImage: {
         width: 45, height: 45, borderRadius: 22.5, borderWidth: 2, borderColor: '#4F46E5',
-    },
-    floatingRefreshButton: {
-      position: 'absolute',
-      bottom: 30,
-      right: 30,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: '#FFFFFF',
-      justifyContent: 'center',
-      alignItems: 'center',
-      // Shadow
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 5,
-      elevation: 8,
     },
 
     // Card Common Styles
@@ -583,3 +570,4 @@ const logStyles = StyleSheet.create({
 });
 
 export default AnalyticsScreen;
+
