@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, Image, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // --- Configuration Constants ---
 const PROFILE_NAME = "John Doe";
@@ -11,7 +11,9 @@ const AppHeader = () => {
   return (
     <View style={headerStyles.headerContainer}>
       <View style={headerStyles.logoGroup}>
-        <Text style={headerStyles.logoIcon}>📊</Text>
+        <Image 
+                source={require('../../assets/images/logo.png')} 
+                style={headerStyles.logoIcon}/>
         <Text style={headerStyles.logoText}>Insightify</Text>
       </View>
       <Image
@@ -172,7 +174,7 @@ const headerStyles = StyleSheet.create({
         marginBottom: 10 
     },
     logoGroup: { flexDirection: 'row', alignItems: 'center' },
-    logoIcon: { fontSize: 24, marginRight: 8, color: '#4F46E5' },
+    logoIcon: {  width: 42, height: 42, marginRight: 1, marginTop: 3, resizeMode: 'contain' },
     logoText: { fontSize: 24, fontWeight: '700', color: '#1F2937' },
     profileImage: { 
         width: 45, 

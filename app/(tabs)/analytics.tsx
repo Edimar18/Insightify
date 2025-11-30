@@ -15,7 +15,10 @@ const AppHeader = () => {
   return (
     <View style={styles.headerContainer}>
       <View style={styles.logoGroup}>
-        <Text style={styles.logoIcon}>📊</Text>
+      <Image 
+        source={require('../../assets/images/logo.png')} 
+        style={styles.logoIcon} 
+      />
         <Text style={styles.logoText}>Insightify</Text>
       </View>
       <Image
@@ -362,9 +365,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     logoIcon: {
-        fontSize: 24,
-        marginRight: 8,
-        color: '#4F46E5', 
+        width: 42, 
+        height: 42,
+        marginRight: 1, 
+        marginTop: 3, 
+        resizeMode: 'contain',
     },
     logoText: {
         fontSize: 24,
