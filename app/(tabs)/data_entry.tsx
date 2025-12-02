@@ -605,7 +605,7 @@ const EntryScreen = () => {
     const handleImport = async () => {
         try {
             const result = await DocumentPicker.getDocumentAsync({
-                type: 'text/csv',
+                type: ['text/csv', 'text/comma-separated-values', 'application/csv'],
                 copyToCacheDirectory: true,
             });
 
