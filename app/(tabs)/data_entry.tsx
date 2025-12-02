@@ -609,11 +609,11 @@ const EntryScreen = () => {
                 copyToCacheDirectory: true,
             });
 
-            if (result.type === 'success') {
+            if (!result.canceled) {
                 setLoading(true);
                 const destinationUri = documentDirectory + 'transactions.csv';
                 await copyAsync({
-                    from: result.uri,
+                    from: result.assets[0].uri,
                     to: destinationUri
                 });
                 
