@@ -1,9 +1,10 @@
+import { useRouter } from 'expo-router';
+import { signOut } from 'firebase/auth';
 import React from 'react';
-import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { auth } from '../../firebaseConfig';
 
 // --- Configuration Constants ---
-const PROFILE_NAME = "John Doe";
-const PROFILE_EMAIL = "john.doe@business.com";
 const PROFILE_IMAGE_URL = 'https://avatars.githubusercontent.com/u/148160741?v=4';
 
 // --- Component 1: Custom Header (Reused for uniformity and updated vertical padding) ---
@@ -51,9 +52,22 @@ type ProfileScreenProps = {
 };
 // --- Main Screen Component ---
 const ProfileScreen = () => {
+  const router = useRouter();
+  const user = auth.currentUser;
+
   // Dummy handlers for UI demo
   const handlePress = (setting: string)=> {
     console.log(`Navigating to ${setting} screen`);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // The user will be redirected to the login screen.
+      router.replace('/login');
+    } catch (error) {
+      Alert.alert("Logout Failed", "An error occurred while logging out. Please try again.");
+    }
   };
 
   return (
@@ -72,8 +86,8 @@ const ProfileScreen = () => {
                 style={profileStyles.largeProfileImage}
                 onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
             />
-            <Text style={profileStyles.nameText}>{PROFILE_NAME}</Text>
-            <Text style={profileStyles.emailText}>{PROFILE_EMAIL}</Text>
+            <Text style={profileStyles.nameText}>{user?.displayName || "User"}</Text>
+            <Text style={profileStyles.emailText}>{user?.email}</Text>
             
             <TouchableOpacity 
                 style={profileStyles.editButton}
@@ -146,7 +160,7 @@ const ProfileScreen = () => {
         {/* Log Out Button */}
         <TouchableOpacity 
             style={settingsStyles.logoutButton}
-            onPress={() => handlePress('Logout')}
+            onPress={handleLogout}
         >
             <Text style={settingsStyles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>

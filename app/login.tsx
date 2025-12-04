@@ -1,7 +1,14 @@
+import { useNetInfo } from '@react-native-community/netinfo';
 import { useRouter } from 'expo-router';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword
+} from 'firebase/auth';
 import { AnimatePresence, MotiView } from 'moti';
-import React, { useEffect, useState } from 'react';
-import { 
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -15,6 +22,7 @@ import {
   View
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { auth } from '../firebaseConfig'; // Import auth from your config
 
 const { height, width } = Dimensions.get('window');
 
@@ -23,12 +31,27 @@ const Login = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'login' | 'signup'>('login');
+  const [loading, setLoading] = useState(false);
+  const netInfo = useNetInfo();
 
   // Lift amount when keyboard shows
   const [keyboardOffset, setKeyboardOffset] = useState(0);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowForm(true), 1200);
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is signed in, navigate away from the login screen.
+        router.replace('/home');
+      } else {
+        // No user is signed in, show the login form.
+        const timer = setTimeout(() => setShowForm(true), 1200);
+        return () => clearTimeout(timer);
+      }
+    });
+
+    // Cleanup subscription on unmount
+    const timer = setTimeout(() => !auth.currentUser && setShowForm(true), 1200);
     return () => clearTimeout(timer);
   }, []);
 
@@ -47,20 +70,54 @@ const Login = () => {
     };
   }, []);
 
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const logoSource = { uri: 'https://via.placeholder.com/150x150.png?text=Insightify' };
 
-  const toggleFormMode = () => {
+  const toggleFormMode = useCallback(() => {
     setFormMode(prev => (prev === 'login' ? 'signup' : 'login'));
-  };
+  }, []);
 
-  const handleLogin = () => {
-    if (username.toLowerCase() === 'edimar' && password === '12345') {
-      router.replace('/home');
-    } else {
-      Alert.alert('Login Failed', 'Invalid username or password.');
+  const handleAuthentication = async () => {
+    if (netInfo.isConnected === false) {
+      Alert.alert("Offline", "You are currently offline. Please check your internet connection.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (formMode === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+        // The onAuthStateChanged listener will handle navigation
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+        // The onAuthStateChanged listener will handle navigation
+      }
+    } catch (error) {
+      let errorMessage = 'An unexpected error occurred.';
+      if (error instanceof Error) {
+          switch ((error as any).code) {
+              case 'auth/user-not-found':
+              case 'auth/wrong-password':
+                  errorMessage = 'Invalid email or password.';
+                  break;
+              case 'auth/email-already-in-use':
+                  errorMessage = 'This email address is already in use.';
+                  break;
+              case 'auth/invalid-email':
+                  errorMessage = 'Please enter a valid email address.';
+                  break;
+              case 'auth/weak-password':
+                  errorMessage = 'Password should be at least 6 characters.';
+                  break;
+              default:
+                  errorMessage = error.message;
+          }
+      }
+      Alert.alert(formMode === 'login' ? 'Login Failed' : 'Sign Up Failed', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -112,13 +169,15 @@ const Login = () => {
                       style={styles.innerFormContainer}
                     >
                       <Text style={styles.loginTitle}>Log In</Text>
-                      <Text style={styles.label}>Username</Text>
+                      <Text style={styles.label}>Email</Text>
                       <TextInput 
-                        placeholder="Enter username" 
+                        placeholder="Enter your email" 
                         placeholderTextColor="#999"
                         style={styles.input}
-                        value={username}
-                        onChangeText={setUsername}
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
                       />
                       <Text style={styles.label}>Password</Text>
                       <TextInput 
@@ -130,8 +189,8 @@ const Login = () => {
                         onChangeText={setPassword}
                       />
 
-                      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                        <Text style={styles.buttonText}>Log in</Text>
+                      <TouchableOpacity style={styles.button} onPress={handleAuthentication} disabled={loading}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log in</Text>}
                       </TouchableOpacity>
                     </MotiView>
                   ) : (
@@ -148,29 +207,38 @@ const Login = () => {
                       <TextInput 
                         placeholder="Enter your email" 
                         placeholderTextColor="#999"
+                        value={email}
+                        onChangeText={setEmail}
                         style={styles.input}
                         keyboardType="email-address"
+                        autoCapitalize="none"
                       />
-                      <Text style={styles.label}>Username</Text>
-                      <TextInput 
-                        placeholder="Choose a username" 
-                        placeholderTextColor="#999"
-                        style={styles.input}
-                      />
-                      <Text style={styles.label}>Password</Text>
+                      <Text style={styles.label}>Password (min. 6 characters)</Text>
                       <TextInput 
                         placeholder="Create a password" 
                         placeholderTextColor="#999"
                         secureTextEntry
+                        value={password}
+                        onChangeText={setPassword}
                         style={styles.input}
                       />
 
-                      <TouchableOpacity style={styles.button}>
-                        <Text style={styles.buttonText}>Create Account</Text>
+                      <TouchableOpacity style={styles.button} onPress={handleAuthentication} disabled={loading}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
                       </TouchableOpacity>
                     </MotiView>
                   )}
                 </AnimatePresence>
+
+                {netInfo.isConnected === false && !loading && (
+                  <View style={{alignItems: 'center', width: '100%'}}>
+                    <Text style={styles.offlineText}>No Internet Connection</Text>
+                    <TouchableOpacity style={styles.offlineButton} onPress={() => router.replace('/home')}>
+                      <Text style={styles.buttonText}>Continue Offline</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
 
                 <TouchableOpacity onPress={toggleFormMode} style={styles.toggleButton}>
                   <Text style={styles.toggleText}>
@@ -284,5 +352,18 @@ const styles = StyleSheet.create({
   toggleTextHighlight: {
     color: '#007BFF',
     fontWeight: '700',
+  },
+  offlineText: {
+    color: '#D32F2F',
+    marginVertical: 10,
+    fontWeight: '600',
+  },
+  offlineButton: {
+    backgroundColor: '#757575',
+    width: '80%',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
   },
 });
