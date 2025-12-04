@@ -52,14 +52,7 @@ export default function TabLayout() {
         }}
         
       />
-      <Tabs.Screen
-        name="testAuth"
-        options={{
-          title: 'test',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons size={28} name="account-circle" color={color} />,
-        }}
-        
-      />
+     
     </Tabs>
   );
 }
