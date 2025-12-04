@@ -1,10 +1,11 @@
-// firebaseConfig.js
 import { initializeApp } from 'firebase/app';
-// Optional: Import other services you need (Auth, Firestore, etc.)
-import { getAuth } from 'firebase/auth';
+// We import specific authentication persistence for React Native
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// YOUR CONFIG FROM FIREBASE CONSOLE (Web App Section)
+// 1. YOUR CONFIGURATION
+// Replace these values with your actual Firebase Console keys
 const firebaseConfig = {
   apiKey: "AIzaSyCLZ1N8VyZ-gcHKejrVt2PpmRlP9phnmnQ",
   authDomain: "insightify-51c84.firebaseapp.com",
@@ -15,11 +16,17 @@ const firebaseConfig = {
   measurementId: "G-TN5YNVF8QY"
 };
 
-// Initialize Firebase
+// 2. INITIALIZE APP
 const app = initializeApp(firebaseConfig);
 
-// Initialize services (optional, based on what you use)
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// 3. INITIALIZE AUTH WITH PERSISTENCE
+// This is the step most tutorials miss. We tell Firebase to use AsyncStorage
+// to keep the user logged in, otherwise the app crashes or logs out on reload.
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
 
-export default app;
+// 4. INITIALIZE FIRESTORE
+const db = getFirestore(app);
+
+export { auth, db };
