@@ -1,13 +1,11 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
-import React from 'react';
-import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { auth } from '../../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { auth, db } from '../../firebaseConfig';
 
-// --- Configuration Constants ---
-const PROFILE_IMAGE_URL = 'https://avatars.githubusercontent.com/u/148160741?v=4';
-
-// --- Component 1: Custom Header (Reused for uniformity and updated vertical padding) ---
+// --- Component 1: Custom Header ---
 const AppHeader = () => {
   return (
     <View style={headerStyles.headerContainer}>
@@ -18,7 +16,7 @@ const AppHeader = () => {
         <Text style={headerStyles.logoText}>Insightify</Text>
       </View>
       <Image
-        source={{ uri: PROFILE_IMAGE_URL }} 
+        source={auth.currentUser?.photoURL ? { uri: auth.currentUser.photoURL } : require('../../assets/images/avatar-placeholder.png')}
         style={headerStyles.profileImage}
         onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
       />
@@ -54,6 +52,41 @@ type ProfileScreenProps = {
 const ProfileScreen = () => {
   const router = useRouter();
   const user = auth.currentUser;
+  const [profile, setProfile] = useState({
+    displayName: user?.displayName || 'User',
+    email: user?.email || '',
+    photoURL: user?.photoURL,
+  });
+  const [loading, setLoading] = useState(true);
+
+  // useFocusEffect runs every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const fetchProfile = async () => {
+        if (user) {
+          setLoading(true);
+          const userDocRef = doc(db, 'users', user.uid);
+          try {
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              // Set profile from Firestore data, with fallback to auth data
+              setProfile({
+                displayName: data.displayName || user.displayName || 'User',
+                email: user.email || '',
+                photoURL: data.photoURL || user.photoURL,
+              });
+            }
+          } catch (error) {
+            console.error("Failed to fetch profile from Firestore:", error);
+          } finally {
+            setLoading(false);
+          }
+        }
+      };
+      fetchProfile();
+    }, [user])
+  );
 
   // Dummy handlers for UI demo
   const handlePress = (setting: string)=> {
@@ -79,23 +112,28 @@ const ProfileScreen = () => {
       >
         <AppHeader />
 
-        {/* Profile Card */}
-        <View style={profileStyles.profileCard}>
-            <Image
-                source={{ uri: PROFILE_IMAGE_URL }}
-                style={profileStyles.largeProfileImage}
-                onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
-            />
-            <Text style={profileStyles.nameText}>{user?.displayName || "User"}</Text>
-            <Text style={profileStyles.emailText}>{user?.email}</Text>
-            
+        {loading ? (
+          <View style={profileStyles.profileCard}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+          </View>
+        ) : (
+          <View style={profileStyles.profileCard}>
+              <Image
+                  source={profile.photoURL ? { uri: profile.photoURL } : require('../../assets/images/avatar-placeholder.png')}
+                  style={profileStyles.largeProfileImage}
+                  onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+              />
+              <Text style={profileStyles.nameText}>{profile.displayName}</Text>
+              <Text style={profileStyles.emailText}>{profile.email}</Text>
+              
             <TouchableOpacity 
                 style={profileStyles.editButton}
-                onPress={() => handlePress('Edit Profile')}
+                onPress={() => router.push('/edit-profile')}
             >
                 <Text style={profileStyles.editButtonText}>Edit Profile</Text>
             </TouchableOpacity>
         </View>
+        )}
 
         {/* --- Settings Section: Account --- */}
         <Text style={settingsStyles.sectionTitle}>Account</Text>
@@ -103,7 +141,7 @@ const ProfileScreen = () => {
             <SettingItem 
                 icon="👤" 
                 label="Personal Information" 
-                onPress={() => handlePress('Personal Info')}
+                onPress={() => router.push('/personal-info')}
             />
             <View style={settingsStyles.separator} />
             <SettingItem 
