@@ -164,14 +164,14 @@ const ProfileScreen = () => {
             <View style={settingsStyles.separator} />
             <SettingItem 
                 icon="📤" 
-                label="Export/Backup Data" 
-                onPress={() => handlePress('Export')}
+                label="Export & Backup" 
+                onPress={() => router.push('/export-backup')}
             />
             <View style={settingsStyles.separator} />
             <SettingItem 
                 icon="☁️" 
                 label="Data Synchronization" 
-                onPress={() => handlePress('Sync')}
+                onPress={() => router.push('/data-sync')}
             />
         </View>
         

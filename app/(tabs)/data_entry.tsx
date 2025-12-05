@@ -1,12 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Asset } from 'expo-asset';
 import * as DocumentPicker from 'expo-document-picker';
-import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { useFocusEffect } from 'expo-router';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, query, updateDoc, writeBatch } from 'firebase/firestore';
 import Papa from 'papaparse';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { auth } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 
 // --- Type Definitions ---
 interface Transaction {
@@ -501,71 +501,67 @@ const EntryScreen = () => {
     }, []));
 
     // Load CSV data
-    useEffect(() => {
-        loadTransactions();
-    }, []);
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    const loadTransactions = async () => {
-        const fileUri = documentDirectory + 'transactions.csv';
+    setLoading(true);
+    const userTransactionsRef = collection(db, 'users', user.uid, 'transactions');
+    const q = query(userTransactionsRef);
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedTransactions: Transaction[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedTransactions.push({ id: doc.id, ...doc.data() } as Transaction);
+      });
+      // Sort by date, newest first
+      const sorted = fetchedTransactions.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+      setTransactions(sorted);
+      setLoading(false);
+    }, (error) => {
+      console.error("Failed to fetch transactions:", error);
+      Alert.alert("Error", "Could not fetch transaction data.");
+      setLoading(false);
+    });
+
+    return () => unsubscribe(); // Cleanup listener
+  }, [auth.currentUser]);
+
+    const handleSave = async (entry: Partial<Transaction>) => {
+        const user = auth.currentUser;
+        if (!user) {
+            Alert.alert("Not Logged In", "You must be logged in to save data.");
+            return;
+        }
+
+        setLoading(true);
         try {
-            const fileInfo = await getInfoAsync(fileUri);
-            let csvString;
-
-            if (!fileInfo.exists) {
-                // If file doesn't exist in document directory, copy it from assets
-                const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
-                await asset.downloadAsync();
-                if (!asset.localUri) return;
-                await copyAsync({ from: asset.localUri, to: fileUri });
-                csvString = await readAsStringAsync(fileUri);
-            } else {
-                // If file exists, read it directly
-                csvString = await readAsStringAsync(fileUri);
+            if (entry.id) { // This is an update
+                const transactionRef = doc(db, 'users', user.uid, 'transactions', entry.id);
+                const { id, ...dataToUpdate } = entry; // Don't save the id inside the document
+                await updateDoc(transactionRef, dataToUpdate);
+            } else { // This is a new entry
+                const userTransactionsRef = collection(db, 'users', user.uid, 'transactions');
+                await addDoc(userTransactionsRef, entry);
             }
-            
-            setCsvUri(fileUri);
-            Papa.parse(csvString, {
-                header: true,
-                dynamicTyping: true,
-                skipEmptyLines: true,
-                complete: (results: any) => {
-                    const validData = results.data
-                        .filter((row: any) => row.Date && row.Amount)
-                        // Add a unique ID to each row for selection handling
-                        .map((row: any, index: number) => ({ ...row, id: `${new Date(row.Date).getTime()}-${index}` }));
-                    setTransactions(validData.sort((a: Transaction, b: Transaction) => new Date(b.Date).getTime() - new Date(a.Date).getTime()));
-                },
-            });
+            setModalVisible(true);
+            setShowForm(false);
+            setEditingTransaction(null);
         } catch (error) {
-            console.error("Failed to load transactions:", error);
+            console.error("Error saving transaction: ", error);
+            Alert.alert("Save Failed", "An error occurred while saving the transaction.");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSave = async (entry: Partial<Transaction>) => {
-        setLoading(true);
-        let updatedTransactions;
-
-        if (entry.id) { // This is an update
-            updatedTransactions = transactions.map(t => t.id === entry.id ? { ...t, ...entry } as Transaction : t);
-        } else { // This is a new entry
-            const newEntryWithId = { ...entry, id: `${new Date(entry.Date!).getTime()}-${transactions.length}` } as Transaction;
-            updatedTransactions = [...transactions, newEntryWithId];
-        }
-
-        // Sort and save
-        const sortedTransactions = updatedTransactions.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
-        await writeToCsv(sortedTransactions);
-
-        setTransactions(sortedTransactions);
-        setModalVisible(true);
-        setShowForm(false);
-        setEditingTransaction(null);
-        setLoading(false);
-    };
-
     const handleDelete = (id: string) => {
+        const user = auth.currentUser;
+        if (!user) return;
+
         Alert.alert(
             "Delete Transaction",
             "Are you sure you want to delete this entry? This action cannot be undone.",
@@ -575,12 +571,9 @@ const EntryScreen = () => {
                     text: "Delete",
                     style: "destructive",
                     onPress: async () => {
-                        setLoading(true);
-                        const updatedTransactions = transactions.filter(t => t.id !== id);
-                        await writeToCsv(updatedTransactions);
-                        setTransactions(updatedTransactions);
+                        const transactionRef = doc(db, 'users', user.uid, 'transactions', id);
+                        await deleteDoc(transactionRef);
                         setSelectedId(null);
-                        setLoading(false);
                     }
                 }
             ]
@@ -595,41 +588,51 @@ const EntryScreen = () => {
         }
     };
 
-    const writeToCsv = async (data: Transaction[]) => {
-        try {
-            if (!csvUri) return;
-            // Sanitize data for unparsing (remove our internal 'id')
-            const dataToSave = data.map(({ id, ...rest }) => rest);
-            const csv = Papa.unparse(dataToSave, {
-                columns: ['Date', 'Type', 'Description', 'Category', 'Amount', 'Quantity', 'UnitPrice']
-            });
-            await writeAsStringAsync(csvUri, csv);
-        } catch (error) {
-            console.error("Failed to save to CSV:", error);
-            alert("Failed to save data. Please try again.");
-        }
-    };
-
     const handleImport = async () => {
+        const user = auth.currentUser;
+        if (!user) {
+            Alert.alert("Not Logged In", "You must be logged in to import data.");
+            return;
+        }
+
         try {
             const result = await DocumentPicker.getDocumentAsync({
                 type: ['text/csv', 'text/comma-separated-values', 'application/csv'],
                 copyToCacheDirectory: true,
             });
 
-            if (!result.canceled) {
-                setLoading(true);
-                const destinationUri = documentDirectory + 'transactions.csv';
-                await copyAsync({
-                    from: result.assets[0].uri,
-                    to: destinationUri
-                });
-                
-                Alert.alert("Import Successful", "The new CSV file has been imported. Reloading data...");
-                await loadTransactions(); // Reload data from the new file
-            } else {
+            if (result.canceled) {
                 Alert.alert("Import Cancelled", "No file was selected.");
+                return;
             }
+
+            setLoading(true);
+            const fileUri = result.assets[0].uri;
+            const csvString = await readAsStringAsync(fileUri);
+
+            Papa.parse(csvString, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: async (results: any) => {
+                    const transactions = results.data.filter((row: any) => row.Date && row.Amount);
+                    if (transactions.length === 0) {
+                        Alert.alert("No Data", "The selected CSV file is empty or invalid. Nothing was imported.");
+                        setLoading(false);
+                        return;
+                    }
+
+                    const batch = writeBatch(db);
+                    const userTransactionsRef = collection(db, 'users', user.uid, 'transactions');
+                    transactions.forEach((transaction: any) => {
+                        const newTransactionRef = doc(userTransactionsRef); // Create a new doc with a unique ID
+                        batch.set(newTransactionRef, transaction);
+                    });
+
+                    await batch.commit();
+                    Alert.alert("Import Complete", `${transactions.length} transactions have been successfully imported and saved to the cloud.`);
+                },
+            });
         } catch (error) {
             console.error("Error during import:", error);
             Alert.alert("Import Failed", "An error occurred while importing the file. Please ensure it is a valid CSV.");
