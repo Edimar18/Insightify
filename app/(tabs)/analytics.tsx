@@ -66,6 +66,7 @@ const TimeFilter = ({ selected, onSelect }: TimeFilterProps) => {
 type PieChartData = {
   name: string;
   amount: number;
+  percentage: number;
   color: string;
   legendFontColor: string;
   legendFontSize: number;
@@ -94,9 +95,12 @@ const ExpenseDonutChart = ({ data }: { data: PieChartData[] }) => {
             )}
             <View style={chartStyles.legendContainer}>
                 {data.map(item => (
-                    <View key={item.name} style={chartStyles.legendItem}>
-                        <View style={[chartStyles.dot, { backgroundColor: item.color }]} />
-                        <Text style={chartStyles.legendText}>{item.name}</Text>
+                    <View key={item.name} style={chartStyles.legendItem}> 
+                        <View style={chartStyles.legendLabelContainer}>
+                            <View style={[chartStyles.dot, { backgroundColor: item.color }]} />
+                            <Text style={chartStyles.legendText}>{item.name}</Text>
+                        </View>
+                        <Text style={chartStyles.legendPercentage}>{item.percentage.toFixed(1)}%</Text>
                     </View>
                 ))}
             </View>
@@ -170,6 +174,7 @@ const ProfitLossChart = ({ data, totalRevenue, totalExpenses, filter }: LineChar
                     width={CARD_WIDTH - 10}
                     height={120}
                     yAxisLabel="₱"
+                    yAxisSuffix=""
                     withInnerLines={false}
                     withHorizontalLabels={false}
                     showBarTops={false}
@@ -232,6 +237,7 @@ const RecentTransactions = ({ transactions }: { transactions: Transaction[] }) =
 // --- Type Definitions ---
 type FilterType = 'Day' | 'Week' | 'Month';
 interface Transaction {
+  id?: string;
   Date: string;
   Type: 'Revenue' | 'Expense';
   Description: string;
@@ -310,13 +316,19 @@ const AnalyticsScreen = () => {
         return acc;
     }, {} as Record<string, number>);
 
-    const pieData: PieChartData[] = Object.entries(expenseGroups).map(([name, amount], index) => ({
-        name,
-        amount,
-        color: CHART_COLORS[index % CHART_COLORS.length],
-        legendFontColor: '#4B5563',
-        legendFontSize: 12,
-    }));
+    const totalExpensesForPie = Object.values(expenseGroups).reduce((sum, amount) => sum + amount, 0);
+
+    const pieData: PieChartData[] = Object.entries(expenseGroups)
+        .map(([name, amount]) => ({
+            name,
+            amount,
+            percentage: totalExpensesForPie > 0 ? (amount / totalExpensesForPie) * 100 : 0,
+            color: '', // We'll assign color after sorting
+            legendFontColor: '#4B5563',
+            legendFontSize: 12,
+        }))
+        .sort((a, b) => b.amount - a.amount) // Sort by amount descending
+        .map((item, index) => ({ ...item, color: CHART_COLORS[index % CHART_COLORS.length] })); // Assign colors after sorting
 
     // Line Chart (Profit over time)
     let lineData;
@@ -529,7 +541,12 @@ const chartStyles = StyleSheet.create({
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between', // This will push the items apart
         marginBottom: 4,
+    },
+    legendLabelContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     dot: {
         width: 8,
@@ -540,6 +557,10 @@ const chartStyles = StyleSheet.create({
     legendText: {
         fontSize: 12,
         color: '#4B5563',
+    },
+    legendPercentage: {
+        color: '#9CA3AF', // A lighter color for the percentage
+        fontWeight: '600',
     },
 
     summary: {

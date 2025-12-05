@@ -45,6 +45,7 @@ const MetricCard = ({ title, value }: MetricCardProps) => {
 
 // --- Type Definition for our Data ---
 interface Transaction {
+  id?: string;
   Date: string;
   Type: 'Revenue' | 'Expense';
   Description: string;
