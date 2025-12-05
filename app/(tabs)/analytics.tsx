@@ -1,10 +1,8 @@
-import { Asset } from 'expo-asset';
-import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync } from 'expo-file-system/legacy';
-import Papa, { ParseResult } from 'papaparse';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
-import { auth } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
 // Calculate card width for two items per row with padding
@@ -203,61 +201,50 @@ const AnalyticsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>('Month');
   const [refreshing, setRefreshing] = useState(false);
-
-  const loadTransactions = async () => {
-    setLoading(true);
-    const fileUri = documentDirectory + 'transactions.csv';
-    try {
-      const fileInfo = await getInfoAsync(fileUri);
-      let csvString;
-
-      if (!fileInfo.exists) {
-        // If file doesn't exist, copy it from assets
-        const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
-        await asset.downloadAsync();
-        if (!asset.localUri) return;
-        await copyAsync({ from: asset.localUri, to: fileUri });
-        csvString = await readAsStringAsync(fileUri);
-      } else {
-        // If file exists, read it
-        csvString = await readAsStringAsync(fileUri);
-      }
-      Papa.parse(csvString, {
-        header: true,
-        dynamicTyping: true,
-        complete: (results: ParseResult<Transaction>) => {
-          // Filter out any empty rows from CSV parsing
-          const validData = results.data.filter(row => row.Date && row.Amount);
-          setTransactions(validData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime())); // Sort newest first
-        },
-      });
-    } catch (error) {
-      console.error("Failed to load or parse transactions:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  
   // --- Data Loading ---
   useEffect(() => {
-    loadTransactions();
-  }, []);
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const userTransactionsRef = collection(db, 'users', user.uid, 'transactions');
+    const q = query(userTransactionsRef);
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedTransactions: Transaction[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedTransactions.push({ id: doc.id, ...doc.data() } as Transaction);
+      });
+      // Sort by date, newest first
+      const sorted = fetchedTransactions.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+      setTransactions(sorted);
+      setLoading(false);
+    }, (error) => {
+      console.error("Failed to fetch transactions:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe(); // Cleanup listener
+  }, [auth.currentUser]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadTransactions().finally(() => setRefreshing(false));
+    // Data is real-time, simulate delay for UX
+    setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
   // --- Data Processing ---
   const { pieChartData, lineChartData, lineChartTotals, filteredTransactions } = useMemo(() => {
-    // Helper to reliably parse MM/DD/YYYY dates
     const parseDate = (dateString: string) => {
         const parts = dateString.split('/');
-        // new Date(year, monthIndex, day)
         return new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
     };
 
-    const now = new Date('2025-10-17T12:00:00Z'); // Use a fixed date for consistent filtering with dummy data
+    const now = new Date(); // Use the current date for filtering
     let filtered = transactions.filter(t => {
         const tDate = parseDate(t.Date);
         if (activeFilter === 'Day') return tDate.toDateString() === now.toDateString();
