@@ -58,11 +58,13 @@ const ProfileScreen = () => {
     photoURL: user?.photoURL,
   });
   const [loading, setLoading] = useState(true);
+  const [_, setForceUpdate] = useState(0); // State to force re-render
 
   // useFocusEffect runs every time the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const fetchProfile = async () => {
+        setForceUpdate(c => c + 1); // Force header to re-render
         if (user) {
           setLoading(true);
           const userDocRef = doc(db, 'users', user.uid);

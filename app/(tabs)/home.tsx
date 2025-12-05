@@ -4,6 +4,7 @@ import Papa, { ParseResult } from 'papaparse';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { auth } from '../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
 
@@ -22,8 +23,8 @@ const AppHeader = () => {
 
       {/* Profile Picture */}
       <Image
-        source={{ uri: 'https://avatars.githubusercontent.com/u/148160741?v=4' }}
-        style={styles.profileImage}
+        source={auth.currentUser?.photoURL ? { uri: auth.currentUser.photoURL } : require('../../assets/images/avatar-placeholder.png')}
+        style={styles.profileImage}      
       />
     </View>
   );
@@ -316,4 +317,3 @@ const styles = StyleSheet.create({
 });
 
 export default DashboardScreen;
-

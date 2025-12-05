@@ -31,6 +31,41 @@ const AppHeader = () => {
   );
 };
 
+/**
+ * Uploads an image to Cloudinary.
+ * You need to configure your cloud_name and upload_preset.
+ * @param uri The local URI of the image file.
+ * @returns The secure URL of the uploaded image from Cloudinary.
+ */
+const uploadImageToCloudinary = async (uri: string) => {
+  const data = new FormData();
+  data.append('file', {
+    uri,
+    type: 'image/jpeg', // Adjust the type if you allow other image formats
+    name: 'profile.jpg',
+  } as any);
+
+  // =================================================================================
+  // TODO: REPLACE THESE PLACEHOLDER VALUES with your Cloudinary credentials
+  const cloudName = 'dubuem6e9'; // <-- REPLACE
+  const uploadPreset = 'InsightifyProfile'; // <-- REPLACE (must be an "unsigned" preset)
+  // =================================================================================
+
+  data.append('upload_preset', uploadPreset);
+
+  try {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: data,
+    });
+    const json = await response.json();
+    return json.secure_url;
+  } catch (error) {
+    console.error('Cloudinary Upload Error:', error);
+    return null;
+  }
+};
+
 // --- Main Screen Component ---
 const EditProfileScreen = () => {
   const router = useRouter();
@@ -100,10 +135,20 @@ const EditProfileScreen = () => {
 
     setSaving(true);
     try {
-      // In a real app, you would upload the imageUri to Cloudinary here
-      // and get back a URL. For now, we'll just use the local URI or existing URL.
-      const newPhotoURL = imageUri; // Replace with Cloudinary URL in the future
+      let newPhotoURL = imageUri;
 
+      // Check if the imageUri is a local file (meaning a new image was picked)
+      if (imageUri && imageUri.startsWith('file://')) {
+        const cloudinaryUrl = await uploadImageToCloudinary(imageUri);
+        if (cloudinaryUrl) {
+          newPhotoURL = cloudinaryUrl;
+        } else {
+          Alert.alert("Upload Failed", "Could not upload the new profile picture. Please try again.");
+          setSaving(false);
+          return;
+        }
+      }
+      
       // 1. Update Firestore document
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
@@ -148,7 +193,7 @@ const EditProfileScreen = () => {
         {/* --- Profile Picture Section --- */}
         <View style={styles.imageSection}>
           <Image
-            source={imageUri ? { uri: imageUri } : require('../assets/images/react-logo.png')}
+            source={imageUri ? { uri: imageUri } : require('../assets/images/avatar-placeholder.png')}
             style={styles.profileImage}
           />
           <TouchableOpacity style={styles.imageButton} onPress={handleImagePick}>
