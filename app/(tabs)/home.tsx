@@ -1,10 +1,8 @@
-import { Asset } from 'expo-asset';
-import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync } from 'expo-file-system/legacy';
-import Papa, { ParseResult } from 'papaparse';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import { auth } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
 
@@ -59,46 +57,42 @@ const DashboardScreen = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const loadTransactions = async () => {
-    setLoading(true);
-    const fileUri = documentDirectory + 'transactions.csv';
-    try {
-      const fileInfo = await getInfoAsync(fileUri);
-      let csvString;
-
-      if (!fileInfo.exists) {
-        const asset = Asset.fromModule(require('../../assets/data/transactions.csv'));
-        await asset.downloadAsync();
-        if (!asset.localUri) return;
-        await copyAsync({ from: asset.localUri, to: fileUri });
-        csvString = await readAsStringAsync(fileUri);
-      } else {
-        csvString = await readAsStringAsync(fileUri);
-      }
-
-      Papa.parse(csvString, {
-        header: true,
-        dynamicTyping: true,
-        complete: (results: ParseResult<Transaction>) => {
-          setTransactions(results.data.filter(row => row.Date && row.Amount));
-        },
-      });
-    } catch (error) {
-      console.error("Failed to load or parse transactions:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  
   // --- DATA LOADING LOGIC ---
   useEffect(() => {
-    loadTransactions();
-  }, []); // The empty dependency array ensures this runs only once on mount
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    // Path to the user's transactions subcollection
+    const userTransactionsRef = collection(db, 'users', user.uid, 'transactions');
+    const q = query(userTransactionsRef);
+
+    // Set up a real-time listener
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedTransactions: Transaction[] = [];
+      querySnapshot.forEach((doc) => {
+        // Combine document data with its ID
+        fetchedTransactions.push({ id: doc.id, ...doc.data() } as Transaction);
+      });
+      setTransactions(fetchedTransactions);
+      setLoading(false);
+    }, (error) => {
+      console.error("Failed to fetch transactions:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe(); // Cleanup listener on component unmount
+  }, [auth.currentUser]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    loadTransactions().finally(() => setRefreshing(false));
+    // Data is now real-time, so a manual refresh is less critical.
+    // We can just simulate a delay for better UX.
+    setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
   // --- DATA PROCESSING LOGIC ---
