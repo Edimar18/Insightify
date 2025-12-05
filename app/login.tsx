@@ -30,7 +30,7 @@ const Login = () => {
   const router = useRouter();
 
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState<'login' | 'signup'>('login');
+  const [formMode, setFormMode] = useState('login');
   const [loading, setLoading] = useState(false);
   const netInfo = useNetInfo();
 
@@ -58,7 +58,7 @@ const Login = () => {
   // Keyboard lift animation effect
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-      setKeyboardOffset(e.endCoordinates.height * 0.01); // adjust lift strength
+      setKeyboardOffset(e.endCoordinates.height * 0.03); // adjust lift strength
     });
     const hideSub = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardOffset(0);
@@ -73,7 +73,8 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const logoSource = { uri: 'https://via.placeholder.com/150x150.png?text=Insightify' };
+  // CHANGED: Using local require for the image
+  const logoSource = require('../assets/images/logopic.png');
 
   const toggleFormMode = useCallback(() => {
     setFormMode(prev => (prev === 'login' ? 'signup' : 'login'));
@@ -97,7 +98,7 @@ const Login = () => {
     } catch (error) {
       let errorMessage = 'An unexpected error occurred.';
       if (error instanceof Error) {
-          switch ((error as any).code) {
+          switch (error.code) {
               case 'auth/user-not-found':
               case 'auth/wrong-password':
                   errorMessage = 'Invalid email or password.';
@@ -130,9 +131,18 @@ const Login = () => {
         
         {/* Logo + App Name */}
         <MotiView
-          from={{ opacity: 0, translateY: 2.5 }}
-          animate={{ opacity: 1, translateY: showForm ? -height * 0.5 : 0 }}
-          transition={{ type: 'timing', duration: 800 }}
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ 
+            opacity: 1, 
+            // CHANGED: Logic to handle keyboard
+            // If keyboard is open (offset > 0), lift way up (-height * 0.48)
+            // If closed, stay at your preferred lower spot (-height * 0.22)
+            translateY: showForm 
+              ? (keyboardOffset > 0 ? -height * 0.34 : -height * 0.22) 
+              : 0 
+          }}
+          // CHANGED: Faster duration (300ms) when keyboard opens so it doesn't get covered
+          transition={{ type: 'timing', duration: keyboardOffset > 0 ? 300 : 800 }}
           style={styles.logoContainer}
         >
           <Image source={logoSource} style={styles.logo} resizeMode="contain" />
@@ -272,14 +282,14 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     position: 'absolute',
-    top: '50%',
-    alignItems: 'center',
-    transform: [{ translateY: -60 }],
+    top: '56%', 
+    flexDirection: 'row', 
+    alignItems: 'center', 
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 10,
+    width: 50,
+    height: 50,
+    marginRight: 1,
   },
   appName: {
     color: '#FFFFFF',
