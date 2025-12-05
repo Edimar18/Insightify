@@ -78,7 +78,14 @@ const DashboardScreen = () => {
         // Combine document data with its ID
         fetchedTransactions.push({ id: doc.id, ...doc.data() } as Transaction);
       });
-      setTransactions(fetchedTransactions);
+      const parseDate = (dateString: string) => {
+        const parts = dateString.split('/');
+        // Note: months are 0-based in JS Date: Month - 1
+        return new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
+      };
+      // Sort by date, newest first
+      const sorted = fetchedTransactions.sort((a, b) => parseDate(b.Date).getTime() - parseDate(a.Date).getTime());
+      setTransactions(sorted);
       setLoading(false);
     }, (error) => {
       console.error("Failed to fetch transactions:", error);
