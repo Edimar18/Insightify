@@ -31,8 +31,6 @@ const AppHeader = () => {
   );
 };
 
-<<<<<<< HEAD
-=======
 /**
  * Uploads an image to Cloudinary.
  * You need to configure your cloud_name and upload_preset.
@@ -68,7 +66,6 @@ const uploadImageToCloudinary = async (uri: string) => {
   }
 };
 
->>>>>>> cloudinaryIntegration
 // --- Main Screen Component ---
 const EditProfileScreen = () => {
   const router = useRouter();
@@ -138,12 +135,6 @@ const EditProfileScreen = () => {
 
     setSaving(true);
     try {
-<<<<<<< HEAD
-      // In a real app, you would upload the imageUri to Cloudinary here
-      // and get back a URL. For now, we'll just use the local URI or existing URL.
-      const newPhotoURL = imageUri; // Replace with Cloudinary URL in the future
-
-=======
       let newPhotoURL = imageUri;
 
       // Check if the imageUri is a local file (meaning a new image was picked)
@@ -158,7 +149,6 @@ const EditProfileScreen = () => {
         }
       }
       
->>>>>>> cloudinaryIntegration
       // 1. Update Firestore document
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
@@ -203,11 +193,7 @@ const EditProfileScreen = () => {
         {/* --- Profile Picture Section --- */}
         <View style={styles.imageSection}>
           <Image
-<<<<<<< HEAD
-            source={imageUri ? { uri: imageUri } : require('../assets/images/react-logo.png')}
-=======
             source={imageUri ? { uri: imageUri } : require('../assets/images/avatar-placeholder.png')}
->>>>>>> cloudinaryIntegration
             style={styles.profileImage}
           />
           <TouchableOpacity style={styles.imageButton} onPress={handleImagePick}>
