@@ -2,9 +2,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import * as DocumentPicker from 'expo-document-picker';
 import { copyAsync, documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
+import { useFocusEffect } from 'expo-router';
 import Papa from 'papaparse';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { auth } from '../../firebaseConfig';
 
 // --- Type Definitions ---
 interface Transaction {
@@ -31,8 +33,8 @@ const AppHeader = () => {
         <Text style={styles.logoText}>Insightify</Text>
       </View>
       <Image
-        source={{ uri: 'https://avatars.githubusercontent.com/u/148160741?v=4' }} 
-        style={styles.profileImage}
+        source={auth.currentUser?.photoURL ? { uri: auth.currentUser.photoURL } : require('../../assets/images/avatar-placeholder.png')}
+        style={styles.profileImage}      
         onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
       />
     </View>
@@ -491,6 +493,12 @@ const EntryScreen = () => {
     const [csvUri, setCsvUri] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
+    // Force a re-render on focus to update the header's profile picture
+    const [_, setForceUpdate] = useState(0);
+    useFocusEffect(useCallback(() => {
+        setForceUpdate(c => c + 1);
+    }, []));
 
     // Load CSV data
     useEffect(() => {

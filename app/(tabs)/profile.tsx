@@ -58,11 +58,19 @@ const ProfileScreen = () => {
     photoURL: user?.photoURL,
   });
   const [loading, setLoading] = useState(true);
+<<<<<<< HEAD
+=======
+  const [_, setForceUpdate] = useState(0); // State to force re-render
+>>>>>>> cloudinaryIntegration
 
   // useFocusEffect runs every time the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const fetchProfile = async () => {
+<<<<<<< HEAD
+=======
+        setForceUpdate(c => c + 1); // Force header to re-render
+>>>>>>> cloudinaryIntegration
         if (user) {
           setLoading(true);
           const userDocRef = doc(db, 'users', user.uid);
