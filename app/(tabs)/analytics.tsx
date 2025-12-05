@@ -1,7 +1,7 @@
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { LineChart, PieChart } from 'react-native-chart-kit';
+import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
 import { auth, db } from '../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
@@ -111,14 +111,15 @@ type LineChartCardProps = {
     };
     totalRevenue: number;
     totalExpenses: number;
+    filter: FilterType;
 };
 
 // --- Component 4: Profit / Loss Line Chart ---
-const ProfitLossLineChart = ({ data, totalRevenue, totalExpenses }: LineChartCardProps) => {
+const ProfitLossChart = ({ data, totalRevenue, totalExpenses, filter }: LineChartCardProps) => {
     return (
         <View style={styles.card}>
             <Text style={styles.cardTitle}>Profit / Loss</Text>
-            {data.labels.length > 0 ? (
+            {data.labels.length > 0 && filter !== 'Day' ? (
                 <LineChart
                     data={data}
                     width={CARD_WIDTH - 10} // Adjust for padding
@@ -136,6 +137,49 @@ const ProfitLossLineChart = ({ data, totalRevenue, totalExpenses }: LineChartCar
                         propsForDots: { r: '3', strokeWidth: '1', stroke: '#4338CA' },
                     }}
                     bezier
+                    style={{ marginLeft: -15, marginBottom: -10 }}
+                />
+            ) : filter === 'Day' && data.datasets[0].data.length > 0 ? (
+                <LineChart
+                    data={data}
+                    width={CARD_WIDTH - 10}
+                    height={120}
+                    yAxisLabel="₱"
+                    withHorizontalLabels={false}
+                    withInnerLines={false}
+                    withOuterLines={false}
+                    withShadow={false}
+                    chartConfig={{
+                        backgroundColor: '#FFFFFF',
+                        backgroundGradientFrom: '#FFFFFF',
+                        backgroundGradientTo: '#FFFFFF',
+                        decimalPlaces: 0,
+                        color: (opacity = 1) => `rgba(67, 56, 202, ${opacity})`,
+                        propsForDots: { r: '3', strokeWidth: '1', stroke: '#4338CA' },
+                    }}
+                    style={{ marginLeft: -15, marginBottom: -10 }}
+                />
+            ) : (totalRevenue > 0 || totalExpenses > 0) ? (
+                <BarChart
+                    data={{
+                        labels: ['Revenue', 'Expenses'],
+                        datasets: [{
+                            data: [totalRevenue, totalExpenses]
+                        }]
+                    }}
+                    width={CARD_WIDTH - 10}
+                    height={120}
+                    yAxisLabel="₱"
+                    withInnerLines={false}
+                    withHorizontalLabels={false}
+                    showBarTops={false}
+                    chartConfig={{
+                        backgroundColor: '#FFFFFF',
+                        backgroundGradientFrom: '#FFFFFF',
+                        backgroundGradientTo: '#FFFFFF',
+                        decimalPlaces: 0,
+                        color: (opacity = 1, index) => index === 0 ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`, // Green for Revenue, Red for Expense
+                    }}
                     style={{ marginLeft: -15, marginBottom: -10 }}
                 />
             ) : (
@@ -275,19 +319,32 @@ const AnalyticsScreen = () => {
     }));
 
     // Line Chart (Profit over time)
-    const profitByDay = filtered.reduce((acc, t) => {
-        const day = t.Date;
-        if (!acc[day]) acc[day] = { revenue: 0, expense: 0 };
-        if (t.Type === 'Revenue') acc[day].revenue += t.Amount;
-        else acc[day].expense += t.Amount;
-        return acc;
-    }, {} as Record<string, { revenue: number; expense: number }>);
+    let lineData;
+    if (activeFilter === 'Day') {
+        let cumulativeProfit = 0;
+        const profitData = filtered.map(t => {
+            cumulativeProfit += t.Type === 'Revenue' ? t.Amount : -t.Amount;
+            return cumulativeProfit;
+        });
+        lineData = {
+            labels: filtered.map((_, i) => `${i + 1}`), // Labels are "1", "2", "3", ...
+            datasets: [{ data: profitData }]
+        };
+    } else {
+        const profitByDay = filtered.reduce((acc, t) => {
+            const day = t.Date;
+            if (!acc[day]) acc[day] = { revenue: 0, expense: 0 };
+            if (t.Type === 'Revenue') acc[day].revenue += t.Amount;
+            else acc[day].expense += t.Amount;
+            return acc;
+        }, {} as Record<string, { revenue: number; expense: number }>);
 
-    const sortedDays = Object.keys(profitByDay).sort((a, b) => parseDate(a).getTime() - parseDate(b).getTime());
-    const lineData = {
-        labels: sortedDays.map(day => new Date(day).toLocaleDateString('en-US', { day: 'numeric' })),
-        datasets: [{ data: sortedDays.map(day => profitByDay[day].revenue - profitByDay[day].expense) }]
-    };
+        const sortedDays = Object.keys(profitByDay).sort((a, b) => parseDate(a).getTime() - parseDate(b).getTime());
+        lineData = {
+            labels: sortedDays.map(day => new Date(day).toLocaleDateString('en-US', { day: 'numeric' })),
+            datasets: [{ data: sortedDays.map(day => profitByDay[day].revenue - profitByDay[day].expense) }]
+        };
+    }
 
     const totals = filtered.reduce((acc, t) => {
         if (t.Type === 'Revenue') acc.revenue += t.Amount;
@@ -318,7 +375,7 @@ const AnalyticsScreen = () => {
         {/* Top Analytics Cards */}
         <View style={styles.topCardsContainer}>
             <ExpenseDonutChart data={pieChartData} />
-            <ProfitLossLineChart data={lineChartData} totalRevenue={lineChartTotals.revenue} totalExpenses={lineChartTotals.expense} />
+            <ProfitLossChart data={lineChartData} totalRevenue={lineChartTotals.revenue} totalExpenses={lineChartTotals.expense} filter={activeFilter} />
         </View>
 
         {/* Recent Transactions Table */}
