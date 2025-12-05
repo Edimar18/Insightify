@@ -207,41 +207,44 @@ const AddEntryForm = ({ type, onSave, onCancel, initialData }: { type: TabType; 
                 alert('Please fill in all required fields');
                 return;
             }
-            onSave({
+            const dataToSave: Partial<Transaction> = {
                 Date: formData.date,
                 Type: 'Product',
                 Description: formData.description,
                 Category: formData.category,
                 Amount: parseFloat(formData.amount),
-                id: initialData?.id // Pass id if editing
-            });
+            };
+            if (initialData?.id) dataToSave.id = initialData.id;
+            onSave(dataToSave);
         } else if (type === 'Revenue') {
             if (!formData.description || !formData.quantity || !formData.unitPrice) {
                 alert('Please fill in all required fields');
                 return;
             }
             const total = parseFloat(formData.quantity) * parseFloat(formData.unitPrice);
-            onSave({
+            const dataToSave: Partial<Transaction> = {
                 Date: formData.date,
                 Type: 'Revenue',
                 Description: formData.description,
                 Category: formData.category || 'Sales',
                 Amount: total,
-                id: initialData?.id // Pass id if editing
-            });
+            };
+            if (initialData?.id) dataToSave.id = initialData.id;
+            onSave(dataToSave);
         } else if (type === 'Expense') {
             if (!formData.description || !formData.category || !formData.amount) {
                 alert('Please fill in all required fields');
                 return;
             }
-            onSave({
+            const dataToSave: Partial<Transaction> = {
                 Date: formData.date,
                 Type: 'Expense',
                 Description: formData.description,
                 Category: formData.category,
                 Amount: parseFloat(formData.amount),
-                id: initialData?.id // Pass id if editing
-            });
+            };
+            if (initialData?.id) dataToSave.id = initialData.id;
+            onSave(dataToSave);
         }
     };
 
@@ -675,7 +678,7 @@ const EntryScreen = () => {
                 {/* Main Content Area */}
                 {showForm ? (
                     <AddEntryForm 
-                        type={editingTransaction?.Type as TabType || activeTab}
+                        type={editingTransaction ? (editingTransaction.Type as TabType) : activeTab}
                         onSave={handleSave}
                         onCancel={() => {
                             setShowForm(false);
