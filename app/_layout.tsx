@@ -33,6 +33,18 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
 
+        {/* Personal Info Screen */}
+        <Stack.Screen
+          name="personal-info"
+          options={{ headerShown: false }}
+        />
+
+        {/* Edit Profile Screen */}
+        <Stack.Screen
+          name="edit-profile"
+          options={{ headerShown: false }}
+        />
+
         {/* Modal Screen (optional) */}
         <Stack.Screen
           name="modal"
@@ -44,5 +56,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-
-
