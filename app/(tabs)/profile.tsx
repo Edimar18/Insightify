@@ -65,10 +65,7 @@ const ProfileScreen = () => {
     useCallback(() => {
       const fetchProfile = async () => {
         setForceUpdate(c => c + 1); // Force header to re-render
-<<<<<<< HEAD
-=======
         setForceUpdate(c => c + 1); // Force header to re-render
->>>>>>> cloudinaryIntegration
         if (user) {
           setLoading(true);
           const userDocRef = doc(db, 'users', user.uid);
