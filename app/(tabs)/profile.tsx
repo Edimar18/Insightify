@@ -150,17 +150,19 @@ const ProfileScreen = () => {
             <SettingItem 
                 icon="🔒" 
                 label="Security & Password" 
-                onPress={() => handlePress('Security')}
+                // LINKED: security_password.tsx
+                onPress={() => router.push('/security_password')}
             />
         </View>
 
-        {/* --- Settings Section: Data & Analytics (Based on Context) --- */}
+        {/* --- Settings Section: Data & Analytics --- */}
         <Text style={settingsStyles.sectionTitle}>Data Management</Text>
         <View style={settingsStyles.card}>
             <SettingItem 
                 icon="🔔" 
                 label="Notification Settings" 
-                onPress={() => handlePress('Notifications')}
+                // LINKED: notification_settings.tsx
+                onPress={() => router.push('/notification_settings')} 
             />
             <View style={settingsStyles.separator} />
             <SettingItem 
@@ -182,19 +184,22 @@ const ProfileScreen = () => {
             <SettingItem 
                 icon="ℹ️" 
                 label="App Version & License" 
-                onPress={() => handlePress('About')}
+                // LINKED: appVer_license.tsx
+                onPress={() => router.push('/appVer_license')}
             />
             <View style={settingsStyles.separator} />
             <SettingItem 
                 icon="❓" 
                 label="Help & FAQ" 
-                onPress={() => handlePress('Help')}
+                // LINKED: help_faq.tsx
+                onPress={() => router.push('/help_faq')}
             />
             <View style={settingsStyles.separator} />
             <SettingItem 
                 icon="📜" 
                 label="Terms and Privacy Policy" 
-                onPress={() => handlePress('Terms')}
+                // CHANGED: Linked to terms_privacyPolicy.tsx
+                onPress={() => router.push('/terms_privacyPolicy')}
             />
         </View>
 
@@ -219,13 +224,13 @@ const styles = StyleSheet.create({
     contentContainer: { paddingBottom: 40 },
 });
 
-// Header Styles (Updated padding vertical to 20)
+// Header Styles
 const headerStyles = StyleSheet.create({
     headerContainer: { 
         flexDirection: 'row', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        paddingVertical: 20, // UPDATED: increased vertical padding
+        paddingVertical: 20, 
         marginBottom: 10 
     },
     logoGroup: { flexDirection: 'row', alignItems: 'center' },
